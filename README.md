@@ -1114,3 +1114,37 @@ That adapter can target multiple ESP-NOW peers.
 
 This does not limit ESPressio Event's multi-transport architecture: the same Event manager can simultaneously register this ESP-NOW adapter alongside UDP, Serial, or other future `IEventTransport` implementations.
 
+
+
+### Broadcast Event Transport Example
+
+Version `0.2.0` also includes:
+
+```text
+examples/
+└── EventTransportBroadcast/
+    └── EventTransportBroadcast.ino
+```
+
+This example uses the standard ESP-NOW broadcast MAC:
+
+```text
+FF:FF:FF:FF:FF:FF
+```
+
+as the sole `ESPNowEventTransport` destination.
+
+Every ESP32 running the example on the same Wi-Fi channel can therefore transmit the same registered Serializable Event to every other participating ESP32 without maintaining a point-to-point destination list.
+
+Each Event includes the originating station MAC as application payload so receiving devices can identify which ESP32 generated it.
+
+The flow is:
+
+```text
+ESP32 A --+
+ESP32 B --+--> ESP-NOW broadcast --> every other participating ESP32
+ESP32 C --+
+```
+
+Remote copies are dispatched normally through the local Event system with `EventOrigin::Remote`; ESPressio Event loop prevention stops those copies being retransmitted automatically.
+
