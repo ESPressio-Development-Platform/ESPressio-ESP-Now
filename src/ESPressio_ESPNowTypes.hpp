@@ -29,6 +29,7 @@ namespace ESPressio {
 
         enum class ESPNowProtocol : uint8_t {
             ClockSynchronization = 1,
+            EventTransport = 2,
             UserBase = 64
         };
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Added optional `ESPNowEventTransport` implementing ESPressio Event 5.4 `IEventTransport`.
+- Added ESP-NOW Event Transport protocol identifier.
+- Added multi-peer Event packet fan-out.
+- Added fragmentation/reassembly so Event Transport packets can exceed one ESP-NOW frame.
+- Preserved callback isolation by performing Event processing outside the Wi-Fi receive callback.
+- Kept ESPressio Event and Serializable optional for non-Event ESPressio ESP-Now users.
+- Added Event Transport example and documentation.
+
 ## 0.1.0
 
 Initial ESPressio ESP-Now release.

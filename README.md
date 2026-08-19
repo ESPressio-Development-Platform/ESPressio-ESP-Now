@@ -4,15 +4,15 @@ ESP-NOW transport and distributed ESPressio implementations for the Flowduino ES
 
 ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-family applications and hosts ESP-NOW-specific integrations for other ESPressio libraries.
 
-The first release provides distributed **ESPressio System Clock synchronization** using the transport-independent clock-discipline engine introduced by ESPressio Timing 2.1.
+The library provides distributed **ESPressio System Clock synchronization** and, from 0.2.0, an optional concrete **ESPressio Event Transport** adapter for routing Serializable Events over ESP-NOW.
 
 ## Latest Stable Version
 
-The latest Stable Version is [0.1.0](https://github.com/Flowduino/ESPressio-ESPNow/releases/tag/0.1.0).
+The latest Stable Version is **0.2.0**.
 
 ## Compatibility
 
-ESPressio ESP-Now `0.1.0` targets the **ESP32 family under Arduino-ESP32**.
+ESPressio ESP-Now `0.2.0` targets the **ESP32 family under Arduino-ESP32**.
 
 The implementation uses the native Espressif ESP-NOW and Wi-Fi APIs together with FreeRTOS queues/tasks provided by Arduino-ESP32.
 
@@ -56,7 +56,7 @@ ESPressio ESP-Now gathers timing measurements and submits them to Timing.
 
 ## Dependencies
 
-Version `0.1.0` requires:
+Core ESPressio ESP-Now `0.2.0` requires:
 
 ```text
 ESPressio Timing >= 2.1.0
@@ -65,7 +65,7 @@ Arduino-ESP32
 
 ESPressio Timing provides the transport-independent synchronization and System Clock APIs.
 
-No ESPressio Serializable dependency is required by this release.
+The Event Transport adapter is deliberately opt-in. Projects that include `ESPressio_ESPNowEventTransport.hpp` must also provide **ESPressio Event >= 5.4.0** (and therefore its opt-in Serializable dependency). Projects that use only ESP-NOW transport/clock synchronization do not require ESPressio Event or ESPressio Serializable.
 
 ## Namespace
 
@@ -770,7 +770,7 @@ Add:
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.1.0
+    flowduino/ESPressio-ESPNow@^0.2.0
 ```
 
 ESPressio Timing `>=2.1.0` is declared as a dependency.
@@ -784,7 +784,7 @@ framework = arduino
 board = esp32dev
 
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.1.0
+    flowduino/ESPressio-ESPNow@^0.2.0
 ```
 
 When multiple ESP32s are not associated with a Wi-Fi access point, configure them to use the same explicit ESP-NOW channel.
@@ -920,3 +920,197 @@ shared System Clock synchronization
 ```
 
 without introducing ESP-NOW-specific code into ESPressio Timing itself.
+
+
+## ESPressio Event Transport Integration
+
+Version `0.2.0` adds the first concrete transport adapter for the transport-neutral architecture introduced by ESPressio Event 5.3 and extended with per-transport routing in Event 5.4:
+
+```cpp
+#include <ESPressio_ESPNowEventTransport.hpp>
+```
+
+This header is intentionally **not** included by the normal:
+
+```cpp
+#include <ESPressio_ESPNow.hpp>
+```
+
+umbrella header. Event and Serializable therefore remain optional dependencies.
+
+The adapter implements:
+
+```cpp
+ESPressio::Event::IEventTransport
+```
+
+as:
+
+```cpp
+ESPressio::ESPNow::ESPNowEventTransport
+```
+
+The responsibility boundary is:
+
+```text
+ESPressio Event 5.4+
+    |
+    +-- Event type registration
+    +-- inbound/outbound routing policy
+    +-- serialization/deserialization
+    +-- pending-work policy
+    +-- local Event dispatch
+    +-- loop prevention
+           |
+           | IEventTransport
+           v
+ESPNowEventTransport
+    |
+    +-- destination peers
+    +-- Event-packet fragmentation
+    +-- fragment reassembly
+    +-- ESP-NOW protocol routing
+           |
+           v
+ESPNowTransport
+    |
+    +-- ESP-NOW framing
+    +-- Wi-Fi callback isolation
+    +-- esp_now_send()
+```
+
+### Initialization
+
+Initialize the base ESP-NOW transport first:
+
+```cpp
+auto& espNow =
+    ESPNow::ESPNowTransport::
+        GetInstance();
+
+espNow.Initialize();
+```
+
+Add the ESP-NOW peers using the existing peer API, then initialize an Event adapter:
+
+```cpp
+ESPNow::ESPNowEventTransport
+    eventTransport;
+
+eventTransport.Initialize(
+    espNow
+);
+
+eventTransport.AddDestination(
+    remotePeer
+);
+```
+
+Register that concrete adapter with ESPressio Event:
+
+```cpp
+auto& eventManager =
+    Event::EventTransportManager::
+        GetInstance();
+
+eventManager.RegisterTransport(
+    &eventTransport
+);
+```
+
+Event 5.4 transport-specific policy can then be used directly:
+
+```cpp
+eventManager.RegisterBidirectionalEvents<
+    SharedStateEvent,
+    CameraCommandEvent
+>(
+    &eventTransport
+);
+
+eventManager.RegisterOutboundEvents<
+    TelemetryEvent,
+    DiagnosticsEvent
+>(
+    &eventTransport
+);
+```
+
+Finally:
+
+```cpp
+eventManager.Initialize();
+```
+
+### Multiple ESP-NOW Destinations
+
+One `ESPNowEventTransport` can fan each Event Transport packet out to multiple destination MAC addresses:
+
+```cpp
+eventTransport.AddDestination(
+    peerA
+);
+
+eventTransport.AddDestination(
+    peerB
+);
+
+eventTransport.AddDestination(
+    peerC
+);
+```
+
+Each destination must already be usable by the underlying `ESPNowTransport` (normally through `AddPeer()`).
+
+The Event layer sees this as one concrete transport. The ESP-NOW adapter owns the peer fan-out.
+
+### Fragmentation
+
+ESPressio Event packets are not artificially restricted to a single ESP-NOW frame.
+
+The core ESPressio ESP-NOW wire format deliberately remains inside the classic 250-byte ESP-NOW interoperability limit. After the ESPressio ESP-NOW protocol header and the Event fragment header are accounted for, `ESPNowEventTransport` splits larger Event packets into multiple fragments.
+
+Each fragment carries:
+
+```text
+fragment magic/version
+Event Transport message ID
+fragment index
+fragment count
+fragment length
+total Event Transport packet length
+```
+
+The receiver reassembles all fragments before forwarding the complete packet to:
+
+```cpp
+IEventTransportReceiver::
+    ReceiveEventTransportPacket(...)
+```
+
+ESPressio Event therefore receives exactly the transport packet it originally produced and remains unaware of ESP-NOW fragmentation.
+
+### Receive Context
+
+The native ESP-NOW receive callback still performs only bounded copying into the existing FreeRTOS receive queue.
+
+Protocol routing and Event fragment reassembly occur later in the dedicated `ESPNowTransport` receive task.
+
+The ESPressio Event Transport manager is therefore never entered directly from the Wi-Fi callback.
+
+### Delivery Semantics
+
+`ESPNowEventTransport::Send()` reports whether all ESP-NOW fragment submissions were accepted by the underlying `esp_now_send()` API.
+
+This is **transport handoff acceptance**, not an end-to-end delivery acknowledgement.
+
+Reliable delivery, retries, acknowledgements, ordering guarantees beyond fragment reconstruction, and peer liveness are intentionally not claimed by 0.2.0 and can be layered into a later ESP-NOW transport revision if required.
+
+### One Adapter Per Base ESPNowTransport
+
+`ESPNowTransport` currently supports one handler per ESPressio protocol identifier. Consequently, one active `ESPNowEventTransport` should be attached to the process-wide `ESPNowTransport` singleton.
+
+That adapter can target multiple ESP-NOW peers.
+
+This does not limit ESPressio Event's multi-transport architecture: the same Event manager can simultaneously register this ESP-NOW adapter alongside UDP, Serial, or other future `IEventTransport` implementations.
+
