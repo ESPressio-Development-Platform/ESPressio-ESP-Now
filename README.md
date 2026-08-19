@@ -67,6 +67,19 @@ ESPressio Timing provides the transport-independent synchronization and System C
 
 The Event Transport adapter is deliberately opt-in. Projects that include `ESPressio_ESPNowEventTransport.hpp` must also provide **ESPressio Event >= 5.4.0** (and therefore its opt-in Serializable dependency). Projects that use only ESP-NOW transport/clock synchronization do not require ESPressio Event or ESPressio Serializable.
 
+## ESPressio Library Dependencies
+
+ESPressio is designed as a modular ecosystem of independently useful libraries, with required dependencies kept explicit and optional integrations introduced only when the corresponding functionality is selected.
+
+For a complete overview of the relationships between ESPressio libraries—including required dependencies, opt-in dependencies, and the overall dependency hierarchy—see:
+
+**[ESPressio Library Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.md)**
+
+In the dependency chart:
+
+- **Solid relationships** represent required ESPressio library dependencies.
+- **Dashed relationships** represent opt-in dependencies that are introduced only when the corresponding feature, integration, type, or header is used.
+
 ## Namespace
 
 The public API is contained within:
