@@ -12,6 +12,20 @@ Versioning](https://semver.org/).
 > had little or no release-note detail, the entry is intentionally terse
 > rather than inferring unsupported intent.
 
+## [0.2.1] - 2026-08-19
+
+### Changed
+
+- Updated the optional ESPressio Event Transport integration baseline from ESPressio Event 5.4.0 to 5.5.0.
+- Updated Event Transport compatibility documentation and compile-time dependency guidance for Event 5.5.0.
+- Bumped ESPressio ESP-Now package/version metadata to 0.2.1.
+
+### Compatibility
+
+- No ESP-NOW transport interface or runtime behaviour changes are introduced by this patch release.
+- Existing ESP-NOW System Clock synchronization remains unchanged.
+- Event Transport remains opt-in; applications using only ESP-NOW/Timing functionality do not acquire ESPressio Event or Serializable dependencies.
+
 ## \[0.2.0\] - 2026-08-19
 
 ### Added
