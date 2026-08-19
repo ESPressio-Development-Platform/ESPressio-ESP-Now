@@ -8,11 +8,11 @@ The library provides distributed **ESPressio System Clock synchronization** and,
 
 ## Latest Stable Version
 
-The latest Stable Version is **0.2.1**.
+The latest Stable Version is **0.2.2**.
 
 ## Compatibility
 
-ESPressio ESP-Now `0.2.1` targets the **ESP32 family under Arduino-ESP32**.
+ESPressio ESP-Now `0.2.2` targets the **ESP32 family under Arduino-ESP32**.
 
 The implementation uses the native Espressif ESP-NOW and Wi-Fi APIs together with FreeRTOS queues/tasks provided by Arduino-ESP32.
 
@@ -56,16 +56,16 @@ ESPressio ESP-Now gathers timing measurements and submits them to Timing.
 
 ## Dependencies
 
-Core ESPressio ESP-Now `0.2.1` requires:
+Core ESPressio ESP-Now `0.2.2` requires:
 
 ```text
-ESPressio Timing >= 2.1.0
+ESPressio Timing >= 2.2.1 < 3.0.0
 Arduino-ESP32
 ```
 
 ESPressio Timing provides the transport-independent synchronization and System Clock APIs.
 
-The Event Transport adapter is deliberately opt-in. Projects that include `ESPressio_ESPNowEventTransport.hpp` must also provide **ESPressio Event >= 5.5.0** (and therefore its opt-in Serializable dependency). Projects that use only ESP-NOW transport/clock synchronization do not require ESPressio Event or ESPressio Serializable.
+The Event Transport adapter is deliberately opt-in. Projects that include `ESPressio_ESPNowEventTransport.hpp` must also provide **ESPressio Event >= 5.6.2 < 6.0.0** (and therefore its opt-in Serializable dependency). Projects that use only ESP-NOW transport/clock synchronization do not require ESPressio Event or ESPressio Serializable.
 
 ## Namespace
 
@@ -770,10 +770,10 @@ Add:
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.2.1
+    flowduino/ESPressio-ESPNow@^0.2.2
 ```
 
-ESPressio Timing `>=2.1.0` is declared as a dependency.
+ESPressio Timing `>=2.2.1 <3.0.0` is declared as a dependency.
 
 A typical ESP32 environment might be:
 
@@ -784,7 +784,7 @@ framework = arduino
 board = esp32dev
 
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.2.1
+    flowduino/ESPressio-ESPNow@^0.2.2
 ```
 
 When multiple ESP32s are not associated with a Wi-Fi access point, configure them to use the same explicit ESP-NOW channel.
@@ -798,7 +798,7 @@ When ESP-NOW is used alongside a normal Wi-Fi connection, peer/channel configura
 Install the ESPressio ESP-Now library together with its dependency:
 
 ```text
-ESPressio Timing >= 2.1.0
+ESPressio Timing >= 2.2.1 < 3.0.0
 ```
 
 Then include:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 — 2026-08-19
+
+### Changed
+- Updated active ESPressio dependency baselines to the latest released versions available on 2026-08-19.
+- Bounded dependency compatibility to the current major version so future breaking major releases are not selected automatically.
+- Updated optional ESPressio Event integrations to require Event 5.6.2 or newer within the 5.x line.
+- Updated the required ESPressio Timing baseline to 2.2.1 within the 2.x line.
+- Corrected compile-time patch-version macros to match the package version.
+
 All notable changes to this project are documented in this file.
 
 The structure follows the principles of [Keep a

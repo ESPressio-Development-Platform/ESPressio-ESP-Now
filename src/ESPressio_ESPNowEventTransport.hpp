@@ -9,7 +9,7 @@
  */
 
 #if !__has_include(<ESPressio_EventTransport.hpp>)
-#error "ESPressio ESP-NOW Event Transport requires ESPressio Event >= 5.5.0 in the consuming project."
+#error "ESPressio ESP-NOW Event Transport requires ESPressio Event >= 5.6.1 < 6.0.0 in the consuming project."
 #endif
 
 #include <algorithm>
