@@ -1,38 +1,52 @@
 # Changelog
 
-## 0.2.0
+All notable changes to this project are documented in this file.
 
-- Added optional `ESPNowEventTransport` implementing ESPressio Event 5.4 `IEventTransport`.
-- Added ESP-NOW Event Transport protocol identifier.
-- Added multi-peer Event packet fan-out.
-- Added fragmentation/reassembly so Event Transport packets can exceed one ESP-NOW frame.
-- Preserved callback isolation by performing Event processing outside the Wi-Fi receive callback.
-- Kept ESPressio Event and Serializable optional for non-Event ESPressio ESP-Now users.
-- Added Event Transport example and documentation.
+The structure follows the principles of [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic
+Versioning](https://semver.org/).
 
-## 0.1.0
+> **Historical note:** This changelog was reconstructed retrospectively
+> from published GitHub Releases, tags, release notes, repository
+> history, and the documented public API. Where an historical release
+> had little or no release-note detail, the entry is intentionally terse
+> rather than inferring unsupported intent.
 
-Initial ESPressio ESP-Now release.
+## \[0.2.0\] - 2026-08-19
 
-### ESP-NOW transport
+### Added
 
-- Adds `ESPNowTransport` as the shared ESP-NOW transport foundation.
-- Provides Arduino-ESP32 Wi-Fi/ESP-NOW initialization.
-- Provides ESP-NOW peer registration/removal.
-- Adds small versioned protocol framing.
-- Dispatches received protocol frames outside the Wi-Fi callback.
-- Uses a fixed-size FreeRTOS receive queue to avoid lengthy Wi-Fi-task work.
-- Keeps the initial wire format within ESP-NOW v1's 250-byte interoperability limit.
+-   Added `ESPNowEventTransport`, the first concrete transport for
+    ESPressio Event 5.4 distributed Serializable Events.
+-   Added `ESPNowProtocol::EventTransport`.
+-   Added bidirectional Serializable Event transport over ESP-NOW.
+-   Added multiple Event destination peers.
+-   Added Event packet fragmentation and reassembly.
+-   Added bounded reassembly memory usage and incomplete-reassembly
+    timeout.
+-   Added Event Transport packet-size protection.
+-   Added Event 5.4 per-transport routing support.
+-   Added point-to-point and all-device/broadcast Event Transport
+    examples.
 
-### System Clock synchronization
+### Changed
 
-- Adds `ESPNowClockSynchronizer`.
-- Supports client, reference, and client/reference roles.
-- Implements a four-timestamp request/response exchange.
-- Captures receive timestamps immediately in the ESP-NOW callback path.
-- Converts raw callback timestamps back into the disciplined System Clock time domain.
-- Feeds completed samples into ESPressio Timing 2.1's transport-neutral clock-discipline interface.
-- Supports periodic synchronization through `Update()`.
-- Rejects duplicate/stale responses using synchronization sequence numbers.
-- Supports multiple clients synchronizing against one reference.
-- Supports hierarchical synchronization through `ClientAndReference` mode.
+-   Kept ESPressio Event and Serializable dependencies optional for
+    applications using only ESP-NOW clock synchronization.
+-   Preserved receive-callback isolation and existing Timing/System
+    Clock synchronization.
+
+## \[0.1.0\] - 2026-08-18
+
+### Added
+
+-   Initial ESPressio ESP-Now release.
+-   Added reusable ESP-NOW transport infrastructure.
+-   Added peer management with `ESPNowPeerConfig` and `MacAddress`.
+-   Added versioned ESPressio ESP-NOW wire framing.
+-   Reserved the initial protocol identifier for System Clock
+    synchronization.
+-   Added transport implementation for ESPressio Timing System Clock
+    synchronization across two or more ESP32 devices.
+-   Added example projects demonstrating multi-device clock
+    synchronization.
