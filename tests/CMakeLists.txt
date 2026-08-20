@@ -19,11 +19,25 @@ if(NOT ESPRESSIO_COMMAND_INCLUDE_DIR)
     message(FATAL_ERROR "ESPRESSIO_COMMAND_INCLUDE_DIR is required")
 endif()
 
+if(NOT ESPRESSIO_OBSERVABLE_INCLUDE_DIR)
+    message(FATAL_ERROR "ESPRESSIO_OBSERVABLE_INCLUDE_DIR is required")
+endif()
+
 add_executable(test_command_transport test_command_transport.cpp)
 target_compile_features(test_command_transport PRIVATE cxx_std_17)
 target_compile_options(test_command_transport PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_include_directories(test_command_transport PRIVATE
     ../src
     ${ESPRESSIO_COMMAND_INCLUDE_DIR}
+    ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
 )
 add_test(NAME ESPNowCommandTransport COMMAND test_command_transport)
+
+add_executable(test_observer_contract test_observer_contract.cpp)
+target_compile_features(test_observer_contract PRIVATE cxx_std_17)
+target_compile_options(test_observer_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_include_directories(test_observer_contract PRIVATE
+    ../src
+    ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
+)
+add_test(NAME ESPNowObserverContract COMMAND test_observer_contract)
