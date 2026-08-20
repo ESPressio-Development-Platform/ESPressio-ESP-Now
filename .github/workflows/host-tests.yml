@@ -73,3 +73,5 @@ jobs:
           --lib deps/ESPressio-Timing
           --lib deps/ESPressio-Units
           --lib deps/ESPressio-Observable
+          --project-option="build_flags=-std=gnu++17"
+          --project-option="build_unflags=-std=gnu++11"
