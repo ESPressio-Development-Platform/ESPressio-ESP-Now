@@ -5,7 +5,7 @@
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_MINOR
-#define ESPRESSIO_ESPNOW_VERSION_MINOR 3
+#define ESPRESSIO_ESPNOW_VERSION_MINOR 4
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_PATCH
@@ -13,7 +13,7 @@
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_STRING
-#define ESPRESSIO_ESPNOW_VERSION_STRING "0.3.0"
+#define ESPRESSIO_ESPNOW_VERSION_STRING "0.4.0"
 #endif
 
 #include "ESPressio_ESPNowTypes.hpp"
@@ -26,4 +26,5 @@
  *
  *   ESPressio_ESPNowEventTransport.hpp   -> ESPressio Event
  *   ESPressio_ESPNowCommandTransport.hpp -> ESPressio Command
+ *   ESPressio_ESPNowSecureTransport.hpp  -> ESPressio Security
  */
