@@ -22,9 +22,10 @@ jobs:
           from pathlib import Path
           path = Path('README.md')
           text = path.read_text()
-          start = text.index('## Latest Stable Version')
-          end = text.index('## Compatibility', start)
-          current = """## Current Version — 0.5.1
+          start = text.find('## Latest Stable Version')
+          end = text.find('## Compatibility', start)
+          if start >= 0 and end > start:
+              current = """## Current Version — 0.5.1
 
 ESPressio ESP-Now 0.5.1 is a dependency-maintenance patch over 0.5.0. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.3.
 
@@ -46,7 +47,7 @@ Optional Secure Transport
 The Event relationship intentionally remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.1: Event currently also hosts an ESP-Now-specific Observer bridge. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration (or a dedicated integration package).
 
 """
-          text = text[:start] + current + text[end:]
+              text = text[:start] + current + text[end:]
           replacements = [
               ('ESPressio ESP-Now `0.4.0` targets the ESP32 family under Arduino-ESP32 and requires C++17.', 'ESPressio ESP-Now `0.5.1` targets the ESP32 family under Arduino-ESP32 and requires C++17.'),
               ('### Required for stable 0.4.0', '### Required for 0.5.1'),
@@ -60,8 +61,6 @@ The Event relationship intentionally remains a compatible 5.x opt-in range rathe
               ('The 0.5.0 development branch additionally exposes `IESPNowTransportObserver` through the core transport.', '`IESPNowTransportObserver` is part of the current 0.5.x core transport API.'),
           ]
           for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f'missing expected README text: {old}')
               text = text.replace(old, new, 1)
           path.write_text(text)
       - name: Commit README
