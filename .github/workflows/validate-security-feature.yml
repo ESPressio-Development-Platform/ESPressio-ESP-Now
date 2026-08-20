@@ -1,0 +1,57 @@
+name: Validate Security Feature
+
+on:
+  push:
+    branches: [feature/security-integration]
+    paths: ['.github/workflows/validate-security-feature.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Command
+          ref: 0.2.0
+          path: deps/ESPressio-Command
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Security
+          ref: 0.1.0
+          path: deps/ESPressio-Security
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Timing
+          ref: 2.2.2
+          path: deps/ESPressio-Timing
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Units
+          ref: 0.2.1
+          path: deps/ESPressio-Units
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Observable
+          ref: 3.0.1
+          path: deps/ESPressio-Observable
+      - name: Validate and report
+        shell: bash
+        run: |
+          set +e
+          cmake -S tests -B build -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src" > host-config.log 2>&1; hc=$?
+          if [ $hc -eq 0 ]; then cmake --build build --parallel > host-build.log 2>&1; hb=$?; else hb=99; : > host-build.log; fi
+          if [ $hb -eq 0 ]; then ctest --test-dir build --output-on-failure > host-test.log 2>&1; ht=$?; else ht=99; : > host-test.log; fi
+          pip install platformio > pio-install.log 2>&1; pi=$?
+          if [ $pi -eq 0 ]; then
+            pio ci examples/SecurePeer/SecurePeer.ino --board esp32dev --lib . --lib deps/ESPressio-Security --lib deps/ESPressio-Timing --lib deps/ESPressio-Units --lib deps/ESPressio-Observable --project-option="build_flags=-std=gnu++17" --project-option="build_unflags=-std=gnu++11 -fno-rtti" > secure.log 2>&1; pe=$?
+          else pe=99; : > secure.log; fi
+          mkdir -p .ci
+          { echo "host_config_exit=$hc"; echo "host_build_exit=$hb"; echo "host_test_exit=$ht"; echo "platformio_install_exit=$pi"; echo "secure_example_exit=$pe"; echo '--- HOST BUILD ---'; cat host-build.log; echo '--- HOST TEST ---'; cat host-test.log; echo '--- SECURE EXAMPLE ---'; cat secure.log; } > .ci/security-feature-validation.txt
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- .ci/security-feature-validation.txt
+          git commit -m "chore: record Security feature validation" || true
+          git push origin HEAD:feature/security-integration
