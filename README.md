@@ -8,6 +8,33 @@ ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-fam
 
 The latest Stable Version is **0.4.0**.
 
+## Current Development Version — 0.5.0
+
+The `feature/observable-callback-coverage` branch targets **0.5.0** and adds native Observable coverage for ESP-NOW transport and peer lifecycle without replacing the existing protocol-handler receive path.
+
+For this development branch, the dependency model is:
+
+```text
+Required
+    ESPressio Timing >= 2.2.2 < 3.0.0
+    ESPressio Observable >= 3.0.1 < 4.0.0
+
+Optional Event Transport / observer bridge
+    ESPressio Event >= 5.8.0 < 6.0.0
+
+Optional Command Transport
+    ESPressio Command >= 0.3.0 < 1.0.0
+
+Optional Secure Transport
+    ESPressio Security >= 0.2.0 < 1.0.0
+```
+
+`ESPNowTransport` now exposes observable initialization, shutdown, peer-add/remove, and send success/failure lifecycle information. Protocol receive handlers remain the authoritative data-delivery mechanism.
+
+ESPressio Event remains **opt-in**. Event 5.8 provides `ESPNowTransportEventBridge`; ESP-Now itself does not depend on Event. ESPressio Serial 0.5 can consume the same observer contract directly for diagnostics.
+
+The stable-release documentation below remains intact so existing 0.4.0 users retain accurate historical guidance.
+
 ## Compatibility
 
 ESPressio ESP-Now `0.4.0` targets the ESP32 family under Arduino-ESP32 and requires C++17.
@@ -31,14 +58,16 @@ ESPressio and its component libraries are licensed under the **Apache License 2.
 
 ## ESPressio Library Dependencies
 
-### Required
+### Required for stable 0.4.0
 
 ```text
 ESPressio Timing >= 2.2.2 < 3.0.0
 Arduino-ESP32
 ```
 
-### Optional
+The 0.5.0 development branch additionally requires ESPressio Observable >= 3.0.1 < 4.0.0 as documented above.
+
+### Optional for stable 0.4.0
 
 ```text
 Event Transport
@@ -78,9 +107,11 @@ ESPNowSecureTransport              (optional Security dependency)
 ESPNowSecurityProtocol
 ```
 
+The 0.5.0 development branch additionally exposes `IESPNowTransportObserver` through the core transport.
+
 ## PlatformIO
 
-Core ESP-NOW/Timing usage:
+Core ESP-NOW/Timing usage for stable 0.4.0:
 
 ```ini
 lib_deps =
@@ -102,6 +133,8 @@ lib_deps =
     https://github.com/Flowduino/ESPressio-ESP-Now@^0.4.0
     https://github.com/Flowduino/ESPressio-Security@^0.1.0
 ```
+
+For the 0.5.0 development branch, also include ESPressio Observable 3.0.1 or newer within the 3.x line, and use the Command/Security floors listed in the development-version section above.
 
 Add Command/Event dependencies only when those adapters are selected.
 
@@ -159,6 +192,8 @@ transport.AddPeer(peer);
 
 `peer.Encrypt` controls native ESP-NOW link encryption and remains independent of ESPressio Security application/transport-layer protection.
 
+In the 0.5.0 development branch, successful peer additions/removals and failed peer-management operations are also available through the transport observer contract.
+
 ## ESPressio ESP-NOW Wire Format
 
 The common outer frame carries:
@@ -212,6 +247,8 @@ Call `sync.Update()` regularly for Client modes.
 `ESPNowEventTransport` is an optional concrete ESPressio Event transport for Serializable Events. It supports multiple destination peers and bounded Event fragmentation/reassembly.
 
 The Event integration remains distinct from Command and Security semantics.
+
+The 0.5.0 observer-to-Event bridge is also supplied by ESPressio Event 5.8 rather than by the core ESP-Now umbrella, preserving the dependency direction.
 
 ## Command Transport
 
@@ -283,7 +320,7 @@ secure.SetReceiveHandler(
 );
 ```
 
-Security failures can be observed with `SetSecurityFailureHandler` without exposing secret key material.
+Security failures can be observed with the existing secure-adapter failure mechanism without exposing secret key material; the 0.5.0 transport observer adds general ESP-NOW transport/peer lifecycle diagnostics rather than duplicating the Security observer contract.
 
 See [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md).
 
@@ -329,7 +366,7 @@ ESPNowSecurityProtocol
 
 Security-protocol tests cover protocol allocation, fragmentation, out-of-order reassembly, duplicate fragments, malformed frames, and maximum envelope bounds.
 
-GitHub Actions also compiles real ESP32 examples against released dependency versions, including the secure adapter with ESPressio Security 0.1.0.
+The 0.5.0 development branch additionally validates the native transport observer contract and the refreshed Observable/Command/Security dependency generation. GitHub Actions also compile real ESP32 examples against the coordinated dependencies.
 
 ## Compatibility
 
@@ -341,6 +378,8 @@ GitHub Actions also compiles real ESP32 examples against released dependency ver
 - Command Transport APIs are unchanged;
 - Security integration is opt-in;
 - core ESP-NOW does not acquire a mandatory Security dependency.
+
+The 0.5.0 development branch is designed as a backward-compatible minor extension. Observable becomes a required core dependency because the core transport now owns its lifecycle observation; Event, Command, and Security integrations remain opt-in.
 
 ## Contributing
 

@@ -5,7 +5,7 @@
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_MINOR
-#define ESPRESSIO_ESPNOW_VERSION_MINOR 4
+#define ESPRESSIO_ESPNOW_VERSION_MINOR 5
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_PATCH
@@ -13,10 +13,11 @@
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_STRING
-#define ESPRESSIO_ESPNOW_VERSION_STRING "0.4.0"
+#define ESPRESSIO_ESPNOW_VERSION_STRING "0.5.0"
 #endif
 
 #include "ESPressio_ESPNowTypes.hpp"
+#include "ESPressio_IESPNowTransportObserver.hpp"
 #include "ESPressio_ESPNowTransport.hpp"
 #include "ESPressio_ESPNowClockSynchronizer.hpp"
 
@@ -25,6 +26,9 @@
  * acquire their dependencies merely because the implementations exist:
  *
  *   ESPressio_ESPNowEventTransport.hpp   -> ESPressio Event
- *   ESPressio_ESPNowCommandTransport.hpp -> ESPressio Command
- *   ESPressio_ESPNowSecureTransport.hpp  -> ESPressio Security
+ *   ESPressio_ESPNowCommandTransport.hpp -> ESPressio Command >=0.3.0 <1.0.0
+ *   ESPressio_ESPNowSecureTransport.hpp  -> ESPressio Security >=0.2.0 <1.0.0
+ *
+ * ESPressio Observable is a core dependency in 0.5.0 because transport and
+ * peer lifecycle changes are now observable directly from ESPNowTransport.
  */
