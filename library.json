@@ -1,7 +1,7 @@
 {
     "name": "ESPressio-ESPNow",
-    "description": "ESP-NOW transport and distributed ESPressio implementations for ESP32, including optional ESPressio Event Transport",
-    "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,transport,espressio",
+    "description": "ESP-NOW transport and distributed ESPressio implementations for ESP32, including optional Event and Command transports",
+    "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,command,transport,espressio",
     "authors": {
         "name": "Flowduino",
         "maintainer": true,
@@ -14,9 +14,9 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/Flowduino/ESPressio-ESPNow.git"
+        "url": "https://github.com/Flowduino/ESPressio-ESP-Now.git"
     },
-    "version": "0.2.3",
+    "version": "0.3.0",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "espressif32",
