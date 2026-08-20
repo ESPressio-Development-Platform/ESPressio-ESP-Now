@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — 2026-08-20
+
+### Added
+- Added opt-in ESPressio Security integration targeting Security >= 0.1.0 < 1.0.0.
+- Added `ESPNowProtocol::SecureTransport` (protocol ID 4).
+- Added `ESPNowSecurityProtocol` for bounded fragmentation and reassembly of transport-security envelopes across ESP-NOW frames.
+- Added `ESPNowSecureTransport`, which applies ESPressio Security before ESP-NOW transmission and authenticates/decrypts before application delivery.
+- Added security failure observation without exposing key material.
+- Added support for Security sender IDs, authenticated session epochs, sequence/replay protection, key rotation, and runtime-selectable AEAD algorithms.
+- Added secure ESP-NOW example and host coverage for fragmentation, out-of-order reassembly, malformed fragments, and protocol allocation.
+
+### Changed
+- Bumped package and compile-time version metadata to 0.4.0.
+- Security remains optional; `ESPressio_ESPNow.hpp` does not include the Security integration header.
+- Plain ESP-NOW, Event Transport, Command Transport, and clock synchronization APIs remain source-compatible.
+- Security envelope fragmentation allows protected payloads to span multiple ESP-NOW v1-compatible frames.
+
+### Compatibility
+- Existing 0.3.x applications continue to operate unchanged when Security is not selected.
+- ESPressio Security is an optional downstream dependency and does not become mandatory for core ESP-NOW use.
+
 ## 0.3.0 — 2026-08-20
 
 ### Added
