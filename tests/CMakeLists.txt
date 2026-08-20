@@ -37,6 +37,7 @@ add_executable(test_observer_contract test_observer_contract.cpp)
 target_compile_features(test_observer_contract PRIVATE cxx_std_17)
 target_compile_options(test_observer_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_include_directories(test_observer_contract PRIVATE
+    stubs
     ../src
     ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
 )
