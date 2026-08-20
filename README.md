@@ -4,15 +4,15 @@ ESP-NOW transport and distributed ESPressio implementations for the Flowduino ES
 
 ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-family applications and hosts ESP-NOW-specific integrations for other ESPressio libraries.
 
-The library provides distributed **ESPressio System Clock synchronization** and, from 0.2.0, an optional concrete **ESPressio Event Transport** adapter for routing Serializable Events over ESP-NOW.
+The library provides distributed **ESPressio System Clock synchronization**, an optional concrete **ESPressio Event Transport** adapter for routing Serializable Events over ESP-NOW, and from 0.3.0 an optional **ESPressio Command Transport** for correlated remote Command invocation/result exchange.
 
 ## Latest Stable Version
 
-The latest Stable Version is **0.2.3**.
+The latest Stable Version is **0.3.0**.
 
 ## Compatibility
 
-ESPressio ESP-Now `0.2.3` targets the **ESP32 family under Arduino-ESP32**.
+ESPressio ESP-Now `0.3.0` targets the **ESP32 family under Arduino-ESP32**.
 
 The implementation uses the native Espressif ESP-NOW and Wi-Fi APIs together with FreeRTOS queues/tasks provided by Arduino-ESP32.
 
@@ -56,7 +56,7 @@ ESPressio ESP-Now gathers timing measurements and submits them to Timing.
 
 ## Dependencies
 
-Core ESPressio ESP-Now `0.2.3` requires:
+Core ESPressio ESP-Now `0.3.0` requires:
 
 ```text
 ESPressio Timing >= 2.2.2 < 3.0.0
@@ -66,6 +66,8 @@ Arduino-ESP32
 ESPressio Timing provides the transport-independent synchronization and System Clock APIs.
 
 The Event Transport adapter is deliberately opt-in. Projects that include `ESPressio_ESPNowEventTransport.hpp` must also provide **ESPressio Event >= 5.7.1 < 6.0.0** (and therefore its opt-in Serializable dependency). Projects that use only ESP-NOW transport/clock synchronization do not require ESPressio Event or ESPressio Serializable.
+
+The Command Transport adapter is likewise opt-in. Projects that include `ESPressio_ESPNowCommandTransport.hpp` must provide **ESPressio Command >= 0.2.0 < 1.0.0**. Command transport uses its own compact binary structured protocol and does **not** require ESPressio Serializable or ArduinoJson. See [COMMAND_INTEGRATION.md](COMMAND_INTEGRATION.md).
 
 ## Namespace
 
@@ -106,6 +108,14 @@ Individual facilities can also be included directly:
 #include <ESPressio_ESPNowTransport.hpp>
 #include <ESPressio_ESPNowClockSynchronizer.hpp>
 ```
+
+Optional Command transport:
+
+```cpp
+#include <ESPressio_ESPNowCommandTransport.hpp>
+```
+
+See [Command integration](COMMAND_INTEGRATION.md) for remote invocation, fragmentation, correlation, duplicate suppression, policy, timeout and resource-limit details.
 
 ## ESP-NOW Transport
 
@@ -770,7 +780,7 @@ Add:
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.2.3
+    https://github.com/flowduino/ESPressio-ESP-Now@^0.3.0
 ```
 
 ESPressio Timing `>=2.2.2 <3.0.0` is declared as a dependency.
@@ -784,7 +794,7 @@ framework = arduino
 board = esp32dev
 
 lib_deps =
-    flowduino/ESPressio-ESPNow@^0.2.3
+    https://github.com/flowduino/ESPressio-ESP-Now@^0.3.0
 ```
 
 When multiple ESP32s are not associated with a Wi-Fi access point, configure them to use the same explicit ESP-NOW channel.
