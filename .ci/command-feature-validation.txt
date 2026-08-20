@@ -15,15 +15,9 @@ build_exit=0
 Internal ctest changing into directory: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
 Test project /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
     Start 1: ESPNowCommandTransport
-1/1 Test #1: ESPNowCommandTransport ...........Subprocess aborted***Exception:   0.10 sec
-test_command_transport: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/tests/test_command_transport.cpp:183: main()::<lambda(const ESPressio::ESPNow::ESPNowCommandInvocationContext&)>: Assertion `context.Metadata.RemotePeer == peerA' failed.
+1/1 Test #1: ESPNowCommandTransport ...........   Passed    0.00 sec
 
+100% tests passed, 0 tests failed out of 1
 
-0% tests passed, 1 tests failed out of 1
-
-Total Test time (real) =   0.22 sec
-
-The following tests FAILED:
-	  1 - ESPNowCommandTransport (Subprocess aborted)
-Errors while running CTest
-test_exit=8
+Total Test time (real) =   0.06 sec
+test_exit=0
