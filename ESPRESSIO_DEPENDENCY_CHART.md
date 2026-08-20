@@ -361,3 +361,8 @@ Units + Serializable
 ```
 
 This keeps the individual libraries independently useful while allowing progressively richer ESPressio compositions without imposing unnecessary dependencies on applications that do not use those integrations.
+
+
+## ESPressio ESP-Now → ESPressio Command — opt-in
+
+ESPressio ESP-Now 0.3.0 optionally consumes **ESPressio Command >= 0.2.0 < 1.0.0** when `ESPNowCommandEndpoint` or `ESPNowCommandTransport` is selected. Core ESP-NOW transport, Timing synchronization and Event Transport behavior do not acquire a Command dependency. The integration owns ESP-NOW framing, bounded fragmentation/reassembly, peer/request metadata, correlation, timeout handling and duplicate-request suppression; ESPressio Command continues to own Command definition, typed validation, routing and callback execution. The structured Command protocol does not require ESPressio Serializable.

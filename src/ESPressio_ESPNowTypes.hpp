@@ -30,6 +30,7 @@ namespace ESPressio {
         enum class ESPNowProtocol : uint8_t {
             ClockSynchronization = 1,
             EventTransport = 2,
+            CommandTransport = 3,
             UserBase = 64
         };
 
@@ -99,24 +100,11 @@ namespace ESPressio {
 
 
         struct ESPNowTransportConfig {
-            /*
-             * When true the transport configures Arduino WiFi as WIFI_STA
-             * before initializing ESP-NOW.
-             */
             bool InitializeWiFi = true;
-
-            /*
-             * 0 keeps the currently selected Wi-Fi channel.
-             */
             uint8_t Channel = 0;
-
-            /*
-             * FreeRTOS receive-processing task configuration.
-             */
             uint32_t ReceiveTaskStackSize = 4096;
             UBaseType_t ReceiveTaskPriority = 2;
             BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
-
             std::size_t ReceiveQueueLength = 12;
         };
 
@@ -147,16 +135,9 @@ namespace ESPressio {
 
             MacAddress ReferencePeer;
 
-            /*
-             * Synchronization request period used by Update().
-             */
             uint32_t SynchronizationIntervalMilliseconds =
                 1000;
 
-            /*
-             * Timing's adjustment policy used when a completed exchange is
-             * submitted to the synchronization target.
-             */
             Timing::
                 ClockSynchronizationAdjustmentMode
                     AdjustmentMode =
