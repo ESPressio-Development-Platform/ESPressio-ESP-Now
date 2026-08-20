@@ -1,0 +1,33 @@
+name: Host Tests
+
+on:
+  push:
+    branches:
+      - main
+      - feature/command-transport
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Command
+          ref: 0.2.0
+          path: deps/ESPressio-Command
+
+      - name: Configure
+        run: >-
+          cmake -S tests -B build
+          -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
