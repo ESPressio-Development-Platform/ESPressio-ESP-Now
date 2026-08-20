@@ -31,6 +31,7 @@ namespace ESPressio {
             ClockSynchronization = 1,
             EventTransport = 2,
             CommandTransport = 3,
+            SecureTransport = 4,
             UserBase = 64
         };
 
