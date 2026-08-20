@@ -1,0 +1,526 @@
+install_exit=0
+compile_exit=1
+********************************************************************************
+If you like PlatformIO, please:
+- star it on GitHub > https://github.com/platformio/platformio-core
+- follow us on LinkedIn to stay up-to-date on the latest project news > https://www.linkedin.com/company/platformio/
+- try PlatformIO IDE for embedded development > https://platformio.org/platformio-ide
+********************************************************************************
+
+The following files/directories have been created in /tmp/tmpqhp9z_v1
+include - Put project header files here
+lib - Put project specific (private) libraries here
+src - Put project source files here
+platformio.ini - Project Configuration File
+Resolving esp32dev dependencies...
+Platform Manager: Installing espressif32
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Platform Manager: espressif32@7.0.1 has been installed!
+Tool Manager: Installing espressif/toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Tool Manager: toolchain-xtensa-esp32@8.4.0+2021r2-patch5 has been installed!
+Tool Manager: Installing platformio/framework-arduinoespressif32 @ ~3.20017.0
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Tool Manager: framework-arduinoespressif32@3.20017.241212+sha.dcc1105b has been installed!
+Tool Manager: Installing platformio/tool-esptoolpy @ ~2.41100.0
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Collecting cryptography~=45.0.3
+  Downloading cryptography-45.0.7-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting ecdsa~=0.19.1
+  Downloading ecdsa-0.19.2-py2.py3-none-any.whl.metadata (29 kB)
+Collecting bitstring~=4.3.1
+  Downloading bitstring-4.3.1-py3-none-any.whl.metadata (5.3 kB)
+Collecting reedsolo~=1.7.0
+  Downloading reedsolo-1.7.0-py3-none-any.whl.metadata (23 kB)
+Collecting intelhex~=2.3.0
+  Downloading intelhex-2.3.0-py2.py3-none-any.whl.metadata (2.7 kB)
+Collecting cffi>=1.14 (from cryptography~=45.0.3)
+  Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.5 kB)
+Collecting six>=1.9.0 (from ecdsa~=0.19.1)
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting bitarray<4.0,>=3.0.0 (from bitstring~=4.3.1)
+  Downloading bitarray-3.10.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (36 kB)
+Collecting pycparser (from cffi>=1.14->cryptography~=45.0.3)
+  Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Downloading cryptography-45.0.7-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 145.3 MB/s eta 0:00:00
+Downloading ecdsa-0.19.2-py2.py3-none-any.whl (150 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 150.8/150.8 kB 69.1 MB/s eta 0:00:00
+Downloading bitstring-4.3.1-py3-none-any.whl (71 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 71.9/71.9 kB 34.5 MB/s eta 0:00:00
+Downloading reedsolo-1.7.0-py3-none-any.whl (32 kB)
+Downloading intelhex-2.3.0-py2.py3-none-any.whl (50 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.9/50.9 kB 8.4 MB/s eta 0:00:00
+Downloading bitarray-3.10.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (373 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 373.7/373.7 kB 117.9 MB/s eta 0:00:00
+Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.8/221.8 kB 87.6 MB/s eta 0:00:00
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.2/48.2 kB 22.2 MB/s eta 0:00:00
+Installing collected packages: reedsolo, intelhex, six, pycparser, bitarray, ecdsa, cffi, bitstring, cryptography
+Successfully installed bitarray-3.10.1 bitstring-4.3.1 cffi-2.1.1 cryptography-45.0.7 ecdsa-0.19.2 intelhex-2.3.0 pycparser-3.0 reedsolo-1.7.0 six-1.17.0
+Tool Manager: tool-esptoolpy@2.41100.0 has been installed!
+Tool Manager: Installing platformio/tool-scons @ ~4.40801.0
+Downloading 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Tool Manager: tool-scons@4.40801.0 has been installed!
+Project has been successfully initialized!
+Processing esp32dev (platform: espressif32; board: esp32dev; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32dev.html
+PLATFORM: Espressif 32 (7.0.1) > Espressif ESP32 Dev Module
+HARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.41100.0 (4.11.0) 
+ - toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+Converting CommandPeer.ino
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 38 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- ESPressio-Command @ 0.2.0
+|-- ESPressio-ESPNow @ 0.3.0
+|-- WiFi @ 2.0.0
+Building in release mode
+Compiling .pio/build/esp32dev/src/CommandPeer.ino.cpp.o
+Building .pio/build/esp32dev/bootloader.bin
+Generating partitions .pio/build/esp32dev/partitions.bin
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFi.cpp.o
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFiAP.cpp.o
+esptool.py v4.11.0
+Creating esp32 image...
+Merged 1 ELF section
+Successfully created esp32 image.
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFiClient.cpp.o
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFiGeneric.cpp.o
+In file included from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:4:
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In static member function 'static ESPressio::Command::CommandResult ESPressio::Command::CommandResult::Ok(std::__cxx11::string)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:24:92: error: could not convert '{true, 0, std::move<std::__cxx11::basic_string<char>&>(message)}' from '<brace-enclosed initializer list>' to 'ESPressio::Command::CommandResult'
+     static CommandResult Ok(std::string message = {}) { return {true, 0, std::move(message)}; }
+                                                                                            ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In static member function 'static ESPressio::Command::CommandResult ESPressio::Command::CommandResult::Error(std::__cxx11::string, int)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:25:108: error: could not convert '{false, code, std::move<std::__cxx11::basic_string<char>&>(message)}' from '<brace-enclosed initializer list>' to 'ESPressio::Command::CommandResult'
+     static CommandResult Error(std::string message, int code = 1) { return {false, code, std::move(message)}; }
+                                                                                                            ^
+In file included from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:4:
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In static member function 'static T ESPressio::Command::CommandContext::Convert(const string&)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:12: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         if constexpr (std::is_same_v<T, std::string>) return value;
+            ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:28: error: 'is_same_v' is not a member of 'std'
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                            ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:28: note: suggested alternative: 'is_same'
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                            ^~~~~~~~~
+                            is_same
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:39: error: expected primary-expression before ',' token
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                       ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:52: error: expected primary-expression before '>' token
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                    ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:53: error: expected primary-expression before ')' token
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                     ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:17: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         else if constexpr (std::is_same_v<T, bool>) {
+                 ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:33: error: 'is_same_v' is not a member of 'std'
+         else if constexpr (std::is_same_v<T, bool>) {
+                                 ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:33: note: suggested alternative: 'is_same'
+         else if constexpr (std::is_same_v<T, bool>) {
+                                 ^~~~~~~~~
+                                 is_same
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:44: error: expected primary-expression before ',' token
+         else if constexpr (std::is_same_v<T, bool>) {
+                                            ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:46: error: expected primary-expression before 'bool'
+         else if constexpr (std::is_same_v<T, bool>) {
+                                              ^~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:64:45: error: expected ')' before 'bool'
+         else if constexpr (std::is_same_v<T, bool>) {
+                           ~                 ^~~~~
+                                             )
+lib/ESPressio-Command/src/ESPressio_Command.hpp:69:19: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         } else if constexpr (std::is_integral_v<T>) {
+                   ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:69:35: error: 'is_integral_v' is not a member of 'std'
+         } else if constexpr (std::is_integral_v<T>) {
+                                   ^~~~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:69:35: note: suggested alternative: 'is_integral'
+         } else if constexpr (std::is_integral_v<T>) {
+                                   ^~~~~~~~~~~~~
+                                   is_integral
+lib/ESPressio-Command/src/ESPressio_Command.hpp:69:50: error: expected primary-expression before '>' token
+         } else if constexpr (std::is_integral_v<T>) {
+                                                  ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:69:51: error: expected primary-expression before ')' token
+         } else if constexpr (std::is_integral_v<T>) {
+                                                   ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:71:16: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+             if constexpr (std::is_signed_v<T>) {
+                ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:71:32: error: 'is_signed_v' is not a member of 'std'
+             if constexpr (std::is_signed_v<T>) {
+                                ^~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:71:32: note: suggested alternative: 'is_signed'
+             if constexpr (std::is_signed_v<T>) {
+                                ^~~~~~~~~~~
+                                is_signed
+lib/ESPressio-Command/src/ESPressio_Command.hpp:71:45: error: expected primary-expression before '>' token
+             if constexpr (std::is_signed_v<T>) {
+                                             ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:71:46: error: expected primary-expression before ')' token
+             if constexpr (std::is_signed_v<T>) {
+                                              ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:81:19: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         } else if constexpr (std::is_floating_point_v<T>) {
+                   ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:81:35: error: 'is_floating_point_v' is not a member of 'std'
+         } else if constexpr (std::is_floating_point_v<T>) {
+                                   ^~~~~~~~~~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:81:35: note: suggested alternative: 'is_floating_point'
+         } else if constexpr (std::is_floating_point_v<T>) {
+                                   ^~~~~~~~~~~~~~~~~~~
+                                   is_floating_point
+lib/ESPressio-Command/src/ESPressio_Command.hpp:81:56: error: expected primary-expression before '>' token
+         } else if constexpr (std::is_floating_point_v<T>) {
+                                                        ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:81:57: error: expected primary-expression before ')' token
+         } else if constexpr (std::is_floating_point_v<T>) {
+                                                         ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In member function 'ESPressio::Command::CommandNode& ESPressio::Command::CommandNode::Command(std::__cxx11::string)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:166:34: error: 'make_unique' is not a member of 'std'
+         children_.push_back(std::make_unique<CommandNode>(std::move(name)));
+                                  ^~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:166:34: note: 'std::make_unique' is only available from C++14 onwards
+lib/ESPressio-Command/src/ESPressio_Command.hpp:166:57: error: expected primary-expression before '>' token
+         children_.push_back(std::make_unique<CommandNode>(std::move(name)));
+                                                         ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In member function 'bool ESPressio::Command::CommandNode::RemoveCommand(const string&)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:170:120: error: use of 'auto' in lambda parameter declaration only available with -std=c++14 or -std=gnu++14
+     bool RemoveCommand(const std::string& name) { auto it = std::find_if(children_.begin(), children_.end(), [&](const auto& child){ return child->Matches(name); }); if (it == children_.end()) return false; children_.erase(it); return true; }
+                                                                                                                        ^~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In lambda function:
+lib/ESPressio-Command/src/ESPressio_Command.hpp:170:146: error: base operand of '->' is not a pointer
+     bool RemoveCommand(const std::string& name) { auto it = std::find_if(children_.begin(), children_.end(), [&](const auto& child){ return child->Matches(name); }); if (it == children_.end()) return false; children_.erase(it); return true; }
+                                                                                                                                                  ^~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In member function 'ESPressio::Command::CommandParameter& ESPressio::Command::CommandNode::Parameter(std::__cxx11::string)':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:12: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+            ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:28: error: 'is_same_v' is not a member of 'std'
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+                            ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:28: note: suggested alternative: 'is_same'
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+                            ^~~~~~~~~
+                            is_same
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:39: error: expected primary-expression before ',' token
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+                                       ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:41: error: expected primary-expression before 'bool'
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+                                         ^~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:172:40: error: expected ')' before 'bool'
+         if constexpr (std::is_same_v<T, bool>) return Parameter(std::move(name), ParameterKind::Boolean);
+                      ~                 ^~~~~
+                                        )
+lib/ESPressio-Command/src/ESPressio_Command.hpp:173:17: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) return Parameter(std::move(name), ParameterKind::SignedInteger);
+                 ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:173:33: error: 'is_integral_v' is not a member of 'std'
+         else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) return Parameter(std::move(name), ParameterKind::SignedInteger);
+                                 ^~~~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:173:33: note: suggested alternative: 'is_integral'
+         else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) return Parameter(std::move(name), ParameterKind::SignedInteger);
+                                 ^~~~~~~~~~~~~
+                                 is_integral
+lib/ESPressio-Command/src/ESPressio_Command.hpp:173:48: error: expected primary-expression before '>' token
+         else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) return Parameter(std::move(name), ParameterKind::SignedInteger);
+                                                ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:173:56: error: expected ')' before '::' token
+         else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) return Parameter(std::move(name), ParameterKind::SignedInteger);
+                           ~                            ^~
+                                                        )
+lib/ESPressio-Command/src/ESPressio_Command.hpp:174:17: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         else if constexpr (std::is_integral_v<T>) return Parameter(std::move(name), ParameterKind::UnsignedInteger);
+                 ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:174:33: error: 'is_integral_v' is not a member of 'std'
+         else if constexpr (std::is_integral_v<T>) return Parameter(std::move(name), ParameterKind::UnsignedInteger);
+                                 ^~~~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:174:33: note: suggested alternative: 'is_integral'
+         else if constexpr (std::is_integral_v<T>) return Parameter(std::move(name), ParameterKind::UnsignedInteger);
+                                 ^~~~~~~~~~~~~
+                                 is_integral
+lib/ESPressio-Command/src/ESPressio_Command.hpp:174:48: error: expected primary-expression before '>' token
+         else if constexpr (std::is_integral_v<T>) return Parameter(std::move(name), ParameterKind::UnsignedInteger);
+                                                ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:174:49: error: expected primary-expression before ')' token
+         else if constexpr (std::is_integral_v<T>) return Parameter(std::move(name), ParameterKind::UnsignedInteger);
+                                                 ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:175:17: warning: 'if constexpr' only available with -std=c++17 or -std=gnu++17
+         else if constexpr (std::is_floating_point_v<T>) return Parameter(std::move(name), ParameterKind::FloatingPoint);
+                 ^~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:175:33: error: 'is_floating_point_v' is not a member of 'std'
+         else if constexpr (std::is_floating_point_v<T>) return Parameter(std::move(name), ParameterKind::FloatingPoint);
+                                 ^~~~~~~~~~~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:175:33: note: suggested alternative: 'is_floating_point'
+         else if constexpr (std::is_floating_point_v<T>) return Parameter(std::move(name), ParameterKind::FloatingPoint);
+                                 ^~~~~~~~~~~~~~~~~~~
+                                 is_floating_point
+lib/ESPressio-Command/src/ESPressio_Command.hpp:175:54: error: expected primary-expression before '>' token
+         else if constexpr (std::is_floating_point_v<T>) return Parameter(std::move(name), ParameterKind::FloatingPoint);
+                                                      ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:175:55: error: expected primary-expression before ')' token
+         else if constexpr (std::is_floating_point_v<T>) return Parameter(std::move(name), ParameterKind::FloatingPoint);
+                                                       ^
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFiMulti.cpp.o
+In file included from lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:18,
+                 from lib/ESPressio-ESP-Now/src/ESPressio_ESPNowClockSynchronizer.hpp:9,
+                 from lib/ESPressio-ESP-Now/src/ESPressio_ESPNow.hpp:21,
+                 from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:5:
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp: At global scope:
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:111:22: error: 'remove_cv_t' in namespace 'std' does not name a template type
+                 std::remove_cv_t<
+                      ^~~~~~~~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:111:17: note: suggested alternative: 'remove_cv'
+                 std::remove_cv_t<
+                 ^~~
+                 remove_cv
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp: In static member function 'static TTime ESPressio::Timing::TimeTraits<TTime, std::void_t<decltype (declval<TTime>().value), decltype (declval<TTime>().orderOfMagnitude)> >::FromNanoseconds(TTick, TTick)':
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:138:33: error: 'ValueType' was not declared in this scope
+                     static_cast<ValueType>(
+                                 ^~~~~~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:138:33: note: suggested alternative: 'TimeType'
+                     static_cast<ValueType>(
+                                 ^~~~~~~~~
+                                 TimeType
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:137:29: error: expected primary-expression before '(' token
+                 return TTime(
+                             ^
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:138:33: error: 'ValueType' does not name a type; did you mean 'TimeType'?
+                     static_cast<ValueType>(
+                                 ^~~~~~~~~
+                                 TimeType
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp: In static member function 'static TTick ESPressio::Timing::TimeTraits<TTime, std::void_t<decltype (declval<TTime>().value), decltype (declval<TTime>().orderOfMagnitude)> >::ToNanoseconds(const TTime&)':
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:162:26: error: 'make_unsigned_t' in namespace 'std' does not name a template type
+                     std::make_unsigned_t<TTick>;
+                          ^~~~~~~~~~~~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:162:21: note: suggested alternative: 'make_unsigned'
+                     std::make_unsigned_t<TTick>;
+                     ^~~
+                     make_unsigned
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:164:17: error: 'UnsignedTick' was not declared in this scope
+                 UnsignedTick value =
+                 ^~~~~~~~~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:164:17: note: suggested alternative: 'unsigned'
+                 UnsignedTick value =
+                 ^~~~~~~~~~~~
+                 unsigned
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:176:25: error: 'value' was not declared in this scope
+                         value /= 10;
+                         ^~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:176:25: note: suggested alternative: '_glue'
+                         value /= 10;
+                         ^~~~~
+                         _glue
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:180:25: error: 'value' was not declared in this scope
+                         value
+                         ^~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:180:25: note: suggested alternative: '_glue'
+                         value
+                         ^~~~~
+                         _glue
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:184:23: error: 'UnsignedTick' does not name a type; did you mean 'unsigned'?
+                 const UnsignedTick maximum =
+                       ^~~~~~~~~~~~
+                       unsigned
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:196:25: error: 'value' was not declared in this scope
+                     if (value > maximum / 10) {
+                         ^~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:196:25: note: suggested alternative: '_glue'
+                     if (value > maximum / 10) {
+                         ^~~~~
+                         _glue
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:196:33: error: 'maximum' was not declared in this scope
+                     if (value > maximum / 10) {
+                                 ^~~~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:202:21: error: 'value' was not declared in this scope
+                     value *= 10;
+                     ^~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:202:21: note: suggested alternative: '_glue'
+                     value *= 10;
+                     ^~~~~
+                     _glue
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:206:21: error: 'value' was not declared in this scope
+                     value
+                     ^~~~~
+lib/ESPressio-Timing/src/ESPressio_TimeTraits.hpp:206:21: note: suggested alternative: '_glue'
+                     value
+                     ^~~~~
+                     _glue
+In file included from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:4:
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In instantiation of 'static T ESPressio::Command::CommandContext::Convert(const string&) [with T = bool; std::__cxx11::string = std::__cxx11::basic_string<char>]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:124:87:   required from here
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:62: error: cannot convert 'const string' {aka 'const std::__cxx11::basic_string<char>'} to 'bool' in return
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                              ^~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:86:27: error: static assertion failed: Unsupported CommandContext::Get<T>() type
+             static_assert(!sizeof(T), "Unsupported CommandContext::Get<T>() type");
+                           ^~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In instantiation of 'static T ESPressio::Command::CommandContext::Convert(const string&) [with T = long long int; std::__cxx11::string = std::__cxx11::basic_string<char>]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:126:70:   required from here
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:62: error: cannot convert 'const string' {aka 'const std::__cxx11::basic_string<char>'} to 'long long int' in return
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                              ^~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:86:27: error: static assertion failed: Unsupported CommandContext::Get<T>() type
+             static_assert(!sizeof(T), "Unsupported CommandContext::Get<T>() type");
+                           ^~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In instantiation of 'static T ESPressio::Command::CommandContext::Convert(const string&) [with T = long long unsigned int; std::__cxx11::string = std::__cxx11::basic_string<char>]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:129:79:   required from here
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:62: error: cannot convert 'const string' {aka 'const std::__cxx11::basic_string<char>'} to 'long long unsigned int' in return
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                              ^~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:86:27: error: static assertion failed: Unsupported CommandContext::Get<T>() type
+             static_assert(!sizeof(T), "Unsupported CommandContext::Get<T>() type");
+                           ^~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In instantiation of 'static T ESPressio::Command::CommandContext::Convert(const string&) [with T = long double; std::__cxx11::string = std::__cxx11::basic_string<char>]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:132:72:   required from here
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:62: error: cannot convert 'const string' {aka 'const std::__cxx11::basic_string<char>'} to 'long double' in return
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                              ^~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:86:27: error: static assertion failed: Unsupported CommandContext::Get<T>() type
+             static_assert(!sizeof(T), "Unsupported CommandContext::Get<T>() type");
+                           ^~~~~~~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In instantiation of 'static T ESPressio::Command::CommandContext::Convert(const string&) [with T = unsigned int; std::__cxx11::string = std::__cxx11::basic_string<char>]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:49:82:   required from 'T ESPressio::Command::CommandContext::Get(const string&) const [with T = unsigned int; std::__cxx11::string = std::__cxx11::basic_string<char>]'
+/tmp/tmpqhp9z_v1/src/CommandPeer.ino:43:47:   required from here
+lib/ESPressio-Command/src/ESPressio_Command.hpp:63:62: error: cannot convert 'const string' {aka 'const std::__cxx11::basic_string<char>'} to 'unsigned int' in return
+         if constexpr (std::is_same_v<T, std::string>) return value;
+                                                              ^~~~~
+lib/ESPressio-Command/src/ESPressio_Command.hpp:86:27: error: static assertion failed: Unsupported CommandContext::Get<T>() type
+             static_assert(!sizeof(T), "Unsupported CommandContext::Get<T>() type");
+                           ^~~~~~~~~~
+Compiling .pio/build/esp32dev/lib989/WiFi/WiFiSTA.cpp.o
+In file included from /home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/stl_algobase.h:71,
+                 from /home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/algorithm:61,
+                 from /home/runner/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h:184,
+                 from /tmp/tmpvblqrb7o:1:
+/home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/predefined_ops.h: In instantiation of 'bool __gnu_cxx::__ops::_Iter_pred<_Predicate>::operator()(_Iterator) [with _Iterator = __gnu_cxx::__normal_iterator<std::unique_ptr<ESPressio::Command::CommandNode>*, std::vector<std::unique_ptr<ESPressio::Command::CommandNode> > >; _Predicate = ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)>]':
+/home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/stl_algo.h:120:14:   required from '_RandomAccessIterator std::__find_if(_RandomAccessIterator, _RandomAccessIterator, _Predicate, std::random_access_iterator_tag) [with _RandomAccessIterator = __gnu_cxx::__normal_iterator<std::unique_ptr<ESPressio::Command::CommandNode>*, std::vector<std::unique_ptr<ESPressio::Command::CommandNode> > >; _Predicate = __gnu_cxx::__ops::_Iter_pred<ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)> >]'
+/home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/stl_algo.h:161:23:   required from '_Iterator std::__find_if(_Iterator, _Iterator, _Predicate) [with _Iterator = __gnu_cxx::__normal_iterator<std::unique_ptr<ESPressio::Command::CommandNode>*, std::vector<std::unique_ptr<ESPressio::Command::CommandNode> > >; _Predicate = __gnu_cxx::__ops::_Iter_pred<ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)> >]'
+/home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/stl_algo.h:3930:28:   required from '_IIter std::find_if(_IIter, _IIter, _Predicate) [with _IIter = __gnu_cxx::__normal_iterator<std::unique_ptr<ESPressio::Command::CommandNode>*, std::vector<std::unique_ptr<ESPressio::Command::CommandNode> > >; _Predicate = ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)>]'
+lib/ESPressio-Command/src/ESPressio_Command.hpp:170:164:   required from here
+/home/runner/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include/c++/8.4.0/bits/predefined_ops.h:283:11: error: no match for call to '(ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)>) (std::unique_ptr<ESPressio::Command::CommandNode>&)'
+  { return bool(_M_pred(*__it)); }
+           ^~~~~~~~~~~~~~~~~~~~
+In file included from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:4:
+lib/ESPressio-Command/src/ESPressio_Command.hpp:170:131: note: candidate: 'ESPressio::Command::CommandNode::RemoveCommand(const string&)::<lambda(const int&)>'
+     bool RemoveCommand(const std::string& name) { auto it = std::find_if(children_.begin(), children_.end(), [&](const auto& child){ return child->Matches(name); }); if (it == children_.end()) return false; children_.erase(it); return true; }
+                                                                                                                                   ^
+lib/ESPressio-Command/src/ESPressio_Command.hpp:170:131: note:   no known conversion for argument 1 from 'std::unique_ptr<ESPressio::Command::CommandNode>' to 'const int&'
+In file included from lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:6,
+                 from lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:15,
+                 from lib/ESPressio-ESP-Now/src/ESPressio_ESPNowClockSynchronizer.hpp:9,
+                 from lib/ESPressio-ESP-Now/src/ESPressio_ESPNow.hpp:21,
+                 from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:5:
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::GetTimeNanoseconds() const [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::GetTimeNanoseconds() const [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::GetTimeNanoseconds() const [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:300:25:   required from 'TTick ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::GetTimeNanoseconds() const [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1023:51:   required from 'TTime ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::GetTime() const [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1015:23:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+                                 dynamic_cast<ObserverType*>(handle->GetObserver());
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SetTimeNanoseconds(TTick) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SetTimeNanoseconds(TTick) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SetTimeNanoseconds(TTick) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:389:21:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SetTimeNanoseconds(TTick) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1049:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::SetTime(const TTime&) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1046:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:830:33:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1155:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::Update() [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1154:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:855:29:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::Update() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1155:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::Update() [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1154:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClearCallbacks() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClearCallbacks() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClearCallbacks() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:893:25:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClearCallbacks() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1160:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClearCallbacks() [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1159:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:518:25:   required from 'ESPressio::Timing::ClockSynchronizationResult<TTick> ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1083:29:   required from 'ESPressio::Timing::ClockSynchronizationResult<TTick> ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1070:17:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:538:21:   required from 'ESPressio::Timing::ClockSynchronizationResult<TTick> ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1083:29:   required from 'ESPressio::Timing::ClockSynchronizationResult<TTick> ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::SubmitSynchronizationSample(const ESPressio::Timing::ClockSynchronizationSample<TTick>&, ESPressio::Timing::ClockSynchronizationAdjustmentMode) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1070:17:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ConfigureSynchronization(const ESPressio::Timing::ClockSynchronizationConfig&) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ConfigureSynchronization(const ESPressio::Timing::ClockSynchronizationConfig&) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ConfigureSynchronization(const ESPressio::Timing::ClockSynchronizationConfig&) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:624:21:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ConfigureSynchronization(const ESPressio::Timing::ClockSynchronizationConfig&) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1100:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ConfigureSynchronization(const ESPressio::Timing::ClockSynchronizationConfig&) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1096:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ResetSynchronization() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ResetSynchronization() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ResetSynchronization() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:691:21:   required from 'void ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ResetSynchronization() [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1117:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ResetSynchronization() [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1116:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:720:25:   required from 'bool ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1137:29:   required from 'bool ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::TrySetCallback(const TTime&, ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1145:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::SetCallback(const TTime&, ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1141:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp: In instantiation of 'void ESPressio::Observable::ThreadSafeObservable::_withObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]':
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:112:29:   required from 'void ESPressio::Observable::ThreadSafeObservable::NotificationContext::WithObservers(Callback&&) [with ObserverType = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; Callback = ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]::<lambda(ESPressio::Observable::ThreadSafeObservable::NotificationContext&)>::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_TimingObservable.hpp:18:17:   required from 'void ESPressio::Timing::TimingObservable::Notify(TCallback&&) [with TObserver = ESPressio::Timing::ISystemClockObserver<long long unsigned int>; TCallback = ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]::<lambda(ESPressio::Timing::ISystemClockObserver<long long unsigned int>*)>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:754:21:   required from 'bool ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::TrySetCallbackNanoseconds(TTick, ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback) [with TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClockCore<TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1137:29:   required from 'bool ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::TrySetCallback(const TTime&, ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1145:21:   required from 'void ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::SetCallback(const TTime&, ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback) [with TTime = ESPressio::Units::Time<long long unsigned int, (ESPressio::Units::UnitOrderOfMagnitude)-9>; TLockPolicy = ESPressio::Timing::ThreadSafeLockPolicy; TTick = long long unsigned int; ESPressio::Timing::SystemClock<TTime, TLockPolicy, TTick>::ClockCallback = std::function<void()>]'
+lib/ESPressio-Timing/src/ESPressio_SystemClock.hpp:1141:22:   required from here
+lib/ESPressio-Observable/src/ESPressio_ThreadSafeObservable.hpp:79:33: error: 'dynamic_cast' not permitted with -fno-rtti
+In file included from /tmp/tmpqhp9z_v1/src/CommandPeer.ino:4:
+lib/ESPressio-Command/src/ESPressio_Command.hpp: In member function 'ESPressio::Command::CommandParameter& ESPressio::Command::CommandNode::Parameter(std::__cxx11::string) [with T = unsigned int]':
+lib/ESPressio-Command/src/ESPressio_Command.hpp:177:5: warning: control reaches end of non-void function [-Wreturn-type]
+     }
+     ^
+*** [.pio/build/esp32dev/src/CommandPeer.ino.cpp.o] Error 1
+========================== [FAILED] Took 2.77 seconds ==========================
