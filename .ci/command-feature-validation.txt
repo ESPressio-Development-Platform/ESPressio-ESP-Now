@@ -1,0 +1,29 @@
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.9s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
+configure_exit=0
+[ 50%] Building CXX object CMakeFiles/test_command_transport.dir/test_command_transport.cpp.o
+[100%] Linking CXX executable test_command_transport
+[100%] Built target test_command_transport
+build_exit=0
+Internal ctest changing into directory: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
+Test project /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
+    Start 1: ESPNowCommandTransport
+1/1 Test #1: ESPNowCommandTransport ...........Subprocess aborted***Exception:   0.08 sec
+test_command_transport: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/tests/test_command_transport.cpp:158: int main(): Assertion `aToB.size() > 1' failed.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.15 sec
+
+The following tests FAILED:
+	  1 - ESPNowCommandTransport (Subprocess aborted)
+Errors while running CTest
+test_exit=8
