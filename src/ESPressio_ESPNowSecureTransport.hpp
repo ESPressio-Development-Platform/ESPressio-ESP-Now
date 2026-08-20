@@ -62,22 +62,27 @@ public:
     }
 
 private:
-    struct ReassemblySlot {
-        ESPNowSecurityProtocol::ReassemblyState State;
-    };
+    struct ReassemblySlot { ESPNowSecurityProtocol::ReassemblyState State; };
 
     ESPNowTransport& _transport;
     Security::TransportSecurity* _security = nullptr;
     ReceiveHandler _receiveHandler;
     SecurityFailureHandler _failureHandler;
-    std::array<ReassemblySlot, 6> _reassembly{};
+    std::array<ReassemblySlot, 8> _reassembly{};
     uint32_t _nextMessageID = 1;
+    std::size_t _replacementCursor = 0;
     bool _initialized = false;
 
-    ReassemblySlot& SlotFor(const MacAddress& source) {
-        for (auto& slot : _reassembly) if (slot.State.MessageID != 0 && slot.State.Source == source) return slot;
-        for (auto& slot : _reassembly) if (slot.State.MessageID == 0) return slot;
-        _reassembly[0].State.Reset(); return _reassembly[0];
+    ReassemblySlot& SlotFor(const MacAddress& source, uint32_t messageID) {
+        for (auto& slot : _reassembly) {
+            if (slot.State.MessageID == messageID && slot.State.Source == source) return slot;
+        }
+        for (auto& slot : _reassembly) {
+            if (slot.State.MessageID == 0) return slot;
+        }
+        auto& slot = _reassembly[_replacementCursor++ % _reassembly.size()];
+        slot.State.Reset();
+        return slot;
     }
 
     static uint8_t CandidateProtocol(const std::vector<uint8_t>& envelope) {
@@ -89,7 +94,7 @@ private:
         ESPNowSecurityProtocol::Fragment fragment;
         if (!ESPNowSecurityProtocol::DecodeFragment(frame.Payload, frame.PayloadLength, fragment)) return;
         std::vector<uint8_t> envelope;
-        auto& slot = SlotFor(frame.Source);
+        auto& slot = SlotFor(frame.Source, fragment.MessageID);
         if (!ESPNowSecurityProtocol::AcceptFragment(slot.State, frame.Source, fragment, envelope) || envelope.empty()) return;
         Security::UnprotectedPayload opened;
         const uint8_t protocol = CandidateProtocol(envelope);
