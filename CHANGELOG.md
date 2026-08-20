@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 — 2026-08-20
+
+### Changed
+- Raised the required ESPressio Timing baseline from 2.2.1 to 2.2.2 so ESP-Now consumes the refreshed Timing dependency chain.
+- Updated the validated optional ESPressio Event Transport baseline to Event 5.7.1 within the 5.x line.
+- Updated package metadata for ESP-Now 0.2.3.
+- No ESP-NOW transport, synchronization, fragmentation, or Event Transport runtime semantics changed.
+
 ## 0.2.2 — 2026-08-19
 
 ### Changed
