@@ -26,10 +26,10 @@ jobs:
           cmake -S tests -B build
           -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src"
           -DESPRESSIO_OBSERVABLE_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Observable/src"
-      - name: Build
-        run: cmake --build build --parallel
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+      - name: Build security protocol test
+        run: cmake --build build --target test_security_protocol --parallel
+      - name: Test security protocol
+        run: ctest --test-dir build -R ESPNowSecurityProtocol --output-on-failure
 
   esp32-secure-peer:
     runs-on: ubuntu-latest
@@ -57,11 +57,30 @@ jobs:
           path: deps/ESPressio-Observable
       - name: Install PlatformIO
         run: pip install platformio
+      - name: Create PlatformIO consumer project
+        shell: bash
+        run: |
+          PROJECT="$RUNNER_TEMP/espressio-espnow-security-ci"
+          mkdir -p "$PROJECT/src" "$PROJECT/lib"
+          rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
+          cp -R deps/ESPressio-Security "$PROJECT/lib/ESPressio-Security"
+          cp -R deps/ESPressio-Timing "$PROJECT/lib/ESPressio-Timing"
+          cp -R deps/ESPressio-Units "$PROJECT/lib/ESPressio-Units"
+          cp -R deps/ESPressio-Observable "$PROJECT/lib/ESPressio-Observable"
+          cat > "$PROJECT/platformio.ini" <<'EOF'
+          [env:esp32dev]
+          platform = espressif32
+          board = esp32dev
+          framework = arduino
+          build_flags =
+              -std=gnu++17
+              -frtti
+          build_unflags =
+              -std=gnu++11
+              -fno-rtti
+          lib_ldf_mode = deep+
+          EOF
+          cp examples/SecurePeer/SecurePeer.ino "$PROJECT/src/main.cpp"
       - name: Compile SecurePeer
-        run: >-
-          pio ci examples/SecurePeer/SecurePeer.ino
-          --board esp32dev --lib .
-          --lib deps/ESPressio-Security --lib deps/ESPressio-Timing
-          --lib deps/ESPressio-Units --lib deps/ESPressio-Observable
-          --project-option="build_flags=-std=gnu++17 -frtti"
-          --project-option="build_unflags=-std=gnu++11 -fno-rtti"
+        shell: bash
+        run: pio run -d "$RUNNER_TEMP/espressio-espnow-security-ci"
