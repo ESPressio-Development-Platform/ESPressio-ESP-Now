@@ -50,11 +50,11 @@ ESP-NOW protocol allocation is:
 64+ User/Application protocols
 ```
 
-The original application protocol ID is stored inside the authenticated ESPressio Security envelope. The outer ESP-NOW protocol is `SecureTransport`.
+The outer ESP-NOW protocol is `SecureTransport`. Each secure fragment also carries the original application protocol as a routing field. This is required because `Disabled` and `Preferred` policies may legitimately carry plaintext with no Security envelope. For protected traffic, the same protocol ID is also authenticated inside the ESPressio Security envelope; changing only the outer routing value therefore causes `ProtocolMismatch` and the payload is rejected before application processing.
 
 Because the authenticated envelope adds metadata, nonce, and tag overhead, secure envelopes may exceed one ESP-NOW v1-compatible payload. `ESPNowSecurityProtocol` therefore fragments an envelope into bounded frames and reassembles them before authentication/decryption.
 
-Reassembly accepts out-of-order fragments, ignores duplicate fragments, is bounded to eight fragments per envelope, and is isolated by source MAC/message ID.
+Reassembly accepts out-of-order fragments, ignores duplicate fragments, is bounded to eight fragments per envelope, and is isolated by source MAC/message ID. Concurrent in-flight messages from the same source use independent reassembly slots.
 
 ## Configuration
 
@@ -97,13 +97,14 @@ If `Required` policy cannot protect the message, the send fails before applicati
 secure.SetReceiveHandler(
     [](const ESPNow::ESPNowReceivedFrame& radioFrame,
        const Security::UnprotectedPayload& opened) {
-        // opened.Data is authenticated plaintext.
-        // opened.Protocol is the authenticated original protocol.
+        // opened.Data is the accepted application payload.
+        // opened.Protocol is the original application protocol.
+        // opened.Protected tells whether AEAD protection was used.
     }
 );
 ```
 
-The callback is reached only after envelope reassembly, AEAD authentication/decryption, protocol binding, and replay validation have succeeded.
+Under `Required`, the callback is reached only after envelope reassembly, AEAD authentication/decryption, protocol binding, and replay validation have succeeded. Under `Preferred` or `Disabled`, accepted plaintext is routed using the same outer application-protocol field and is marked `Protected == false`.
 
 Security failures can be observed separately:
 
