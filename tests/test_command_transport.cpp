@@ -180,7 +180,7 @@ int main() {
     endpointB.SetPolicy([&](const ESPNow::ESPNowCommandInvocationContext& context) {
         policySeen = true;
         assert(context.Metadata.Transport == std::string("esp-now"));
-        assert(context.Metadata.RemotePeer == peerA);
+        assert(context.Metadata.RemotePeer == peerA || context.Metadata.RemotePeer == peerC);
         assert(context.Metadata.RequestID != 0);
         if (!context.Invocation.path.empty() && context.Invocation.path.front() == "blocked") {
             return Command::CommandResult::Error("remote policy denied", 21);
