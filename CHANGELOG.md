@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 — 2026-08-20
+
+### Added
+- Added `IESPNowTransportObserver` and observable transport lifecycle notifications.
+- Added notifications for initialization success/failure, shutdown, peer addition/removal, and send acceptance/failure.
+- Added ESPressio Observable >= 3.0.1 < 4.0.0 as a core dependency.
+- Added optional ESPressio Event bridge support through ESPressio Event 5.8.0.
+
+### Changed
+- Updated the validated optional ESPressio Command baseline to Command >= 0.3.0 < 1.0.0.
+- Updated the validated optional ESPressio Security baseline to Security >= 0.2.0 < 1.0.0.
+- Bumped package and compile-time version metadata to 0.5.0.
+- Event, Command and Security integrations remain opt-in.
+
 ## 0.4.0 — 2026-08-20
 
 ### Added
