@@ -57,9 +57,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p .ci
-          mv validation.txt .ci/esp32-command-example-validation.txt
-          git add -- .ci/esp32-command-example-validation.txt
-          git commit -m "chore: record ESP32 Command example validation" || true
+          mv validation.txt .ci/esp32-command-example-validation-2.txt
+          git add -- .ci/esp32-command-example-validation-2.txt
+          git commit -m "chore: record ESP32 Command example validation pass 2" || true
           git push origin HEAD:feature/command-transport
 
-# c++17 validation pass
+# fresh c++17 validation pass
