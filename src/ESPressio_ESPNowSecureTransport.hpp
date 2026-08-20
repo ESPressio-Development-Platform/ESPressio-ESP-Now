@@ -36,7 +36,7 @@ public:
     void Shutdown() {
         if (!_initialized) return;
         _transport.UnregisterProtocolHandler(static_cast<uint8_t>(ESPNowProtocol::SecureTransport));
-        _security = nullptr; _initialized = false; _nextMessageID = 1;
+        _security = nullptr; _initialized = false; _nextMessageID = 1; _replacementCursor = 0;
         for (auto& slot : _reassembly) slot.State.Reset();
     }
 
@@ -50,11 +50,11 @@ public:
         std::vector<uint8_t> secured;
         auto result = _security->Protect(protocol, static_cast<const uint8_t*>(payload), payloadLength, secured);
         if (securityResult) *securityResult = result;
-        if (!result.Success) return false;
+        if (!result.Success || secured.empty()) return false;
         std::vector<std::vector<uint8_t>> fragments;
         uint32_t messageID = _nextMessageID++;
         if (messageID == 0) messageID = _nextMessageID++;
-        if (!ESPNowSecurityProtocol::FragmentEnvelope(messageID, secured.data(), secured.size(), fragments)) return false;
+        if (!ESPNowSecurityProtocol::FragmentEnvelope(protocol, messageID, secured.data(), secured.size(), fragments)) return false;
         for (const auto& fragment : fragments) {
             if (!_transport.Send(destination, static_cast<uint8_t>(ESPNowProtocol::SecureTransport), fragment.data(), fragment.size())) return false;
         }
@@ -85,19 +85,15 @@ private:
         return slot;
     }
 
-    static uint8_t CandidateProtocol(const std::vector<uint8_t>& envelope) {
-        return envelope.size() > 7 ? envelope[7] : 0;
-    }
-
     void HandleFrame(const ESPNowReceivedFrame& frame) {
         if (_security == nullptr) return;
         ESPNowSecurityProtocol::Fragment fragment;
         if (!ESPNowSecurityProtocol::DecodeFragment(frame.Payload, frame.PayloadLength, fragment)) return;
         std::vector<uint8_t> envelope;
         auto& slot = SlotFor(frame.Source, fragment.MessageID);
+        const uint8_t protocol = fragment.ApplicationProtocol;
         if (!ESPNowSecurityProtocol::AcceptFragment(slot.State, frame.Source, fragment, envelope) || envelope.empty()) return;
         Security::UnprotectedPayload opened;
-        const uint8_t protocol = CandidateProtocol(envelope);
         auto result = _security->Unprotect(protocol, envelope.data(), envelope.size(), opened);
         if (!result.Success) {
             if (_failureHandler) _failureHandler(frame, result);
