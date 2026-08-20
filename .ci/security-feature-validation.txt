@@ -4,8 +4,8 @@ host_test_exit=0
 platformio_install_exit=0
 secure_example_exit=0
 --- HOST BUILD ---
-[ 16%] Building CXX object CMakeFiles/test_security_protocol.dir/test_security_protocol.cpp.o
-[ 50%] Building CXX object CMakeFiles/test_core_types.dir/test_core_types.cpp.o
+[ 16%] Building CXX object CMakeFiles/test_core_types.dir/test_core_types.cpp.o
+[ 33%] Building CXX object CMakeFiles/test_security_protocol.dir/test_security_protocol.cpp.o
 [ 50%] Building CXX object CMakeFiles/test_command_transport.dir/test_command_transport.cpp.o
 [ 66%] Linking CXX executable test_core_types
 [ 66%] Built target test_core_types
@@ -25,7 +25,7 @@ Test project /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
 
 100% tests passed, 0 tests failed out of 3
 
-Total Test time (real) =   0.08 sec
+Total Test time (real) =   0.24 sec
 --- SECURE EXAMPLE ---
 ********************************************************************************
 If you like PlatformIO, please:
@@ -34,7 +34,7 @@ If you like PlatformIO, please:
 - try PlatformIO IDE for embedded development > https://platformio.org/platformio-ide
 ********************************************************************************
 
-The following files/directories have been created in /tmp/tmpm7jezccu
+The following files/directories have been created in /tmp/tmpavk87pjn
 include - Put project header files here
 lib - Put project specific (private) libraries here
 src - Put project source files here
@@ -74,21 +74,21 @@ Collecting bitarray<4.0,>=3.0.0 (from bitstring~=4.3.1)
 Collecting pycparser (from cffi>=1.14->cryptography~=45.0.3)
   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
 Downloading cryptography-45.0.7-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 26.8 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 155.0 MB/s eta 0:00:00
 Downloading ecdsa-0.19.2-py2.py3-none-any.whl (150 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 150.8/150.8 kB 48.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 150.8/150.8 kB 52.9 MB/s eta 0:00:00
 Downloading bitstring-4.3.1-py3-none-any.whl (71 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 71.9/71.9 kB 25.3 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 71.9/71.9 kB 27.5 MB/s eta 0:00:00
 Downloading reedsolo-1.7.0-py3-none-any.whl (32 kB)
 Downloading intelhex-2.3.0-py2.py3-none-any.whl (50 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.9/50.9 kB 19.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.9/50.9 kB 20.9 MB/s eta 0:00:00
 Downloading bitarray-3.10.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (373 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 373.7/373.7 kB 96.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 373.7/373.7 kB 98.7 MB/s eta 0:00:00
 Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.8/221.8 kB 77.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.8/221.8 kB 74.1 MB/s eta 0:00:00
 Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
 Downloading pycparser-3.0-py3-none-any.whl (48 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.2/48.2 kB 20.3 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.2/48.2 kB 18.3 MB/s eta 0:00:00
 Installing collected packages: reedsolo, intelhex, six, pycparser, bitarray, ecdsa, cffi, bitstring, cryptography
 Successfully installed bitarray-3.10.1 bitstring-4.3.1 cffi-2.1.1 cryptography-45.0.7 ecdsa-0.19.2 intelhex-2.3.0 pycparser-3.0 reedsolo-1.7.0 six-1.17.0
 Tool Manager: tool-esptoolpy@2.41100.0 has been installed!
@@ -188,11 +188,11 @@ Linking .pio/build/esp32dev/firmware.elf
 Retrieving maximum program size .pio/build/esp32dev/firmware.elf
 Checking size .pio/build/esp32dev/firmware.elf
 Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
-RAM:   [=         ]  13.6% (used 44696 bytes from 327680 bytes)
-Flash: [======    ]  58.5% (used 767081 bytes from 1310720 bytes)
+RAM:   [=         ]  13.7% (used 44952 bytes from 327680 bytes)
+Flash: [======    ]  58.5% (used 767205 bytes from 1310720 bytes)
 Building .pio/build/esp32dev/firmware.bin
 esptool.py v4.11.0
 Creating esp32 image...
 Merged 27 ELF sections
 Successfully created esp32 image.
-========================= [SUCCESS] Took 12.67 seconds =========================
+========================= [SUCCESS] Took 13.05 seconds =========================
