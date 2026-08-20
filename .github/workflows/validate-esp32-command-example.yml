@@ -42,7 +42,7 @@ jobs:
           pip install platformio > install.log 2>&1
           i=$?
           if [ $i -eq 0 ]; then
-            pio ci examples/CommandPeer/CommandPeer.ino --board esp32dev --lib . --lib deps/ESPressio-Command --lib deps/ESPressio-Timing --lib deps/ESPressio-Units --lib deps/ESPressio-Observable > compile.log 2>&1
+            pio ci examples/CommandPeer/CommandPeer.ino --board esp32dev --lib . --lib deps/ESPressio-Command --lib deps/ESPressio-Timing --lib deps/ESPressio-Units --lib deps/ESPressio-Observable --project-option="build_flags=-std=gnu++17" --project-option="build_unflags=-std=gnu++11" > compile.log 2>&1
             c=$?
           else
             c=99
@@ -61,3 +61,5 @@ jobs:
           git add -- .ci/esp32-command-example-validation.txt
           git commit -m "chore: record ESP32 Command example validation" || true
           git push origin HEAD:feature/command-transport
+
+# c++17 validation pass
