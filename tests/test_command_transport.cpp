@@ -109,7 +109,7 @@ int main() {
     std::vector<Frame> bToA;
 
     ESPNow::ESPNowCommandEndpointConfig config;
-    config.MaximumProtocolPayloadBytes = 64; // force fragmentation in tests
+    config.MaximumProtocolPayloadBytes = 40; // force fragmentation in tests
     config.MaximumMessageBytes = 2048;
     config.MaximumOutstandingRequests = 2;
     config.MaximumReassemblies = 4;
