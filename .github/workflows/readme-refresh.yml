@@ -24,11 +24,9 @@ jobs:
           text = path.read_text()
           start = text.index('## Latest Stable Version')
           end = text.index('## Compatibility', start)
-          current = '''## Current Version — 0.5.1
+          current = """## Current Version — 0.5.1
 
 ESPressio ESP-Now 0.5.1 is a dependency-maintenance patch over 0.5.0. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.3.
-
-Current dependency model:
 
 ```text
 Required
@@ -45,82 +43,26 @@ Optional Secure Transport
     ESPressio Security >= 0.2.0 < 1.0.0
 ```
 
-The Event relationship intentionally remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.1: Event currently also hosts an ESP-Now-specific Observer bridge, so strengthening both directions would reinforce a circular optional dependency. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration (or a dedicated integration package).
+The Event relationship intentionally remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.1: Event currently also hosts an ESP-Now-specific Observer bridge. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration (or a dedicated integration package).
 
-'''
+"""
           text = text[:start] + current + text[end:]
-
-          comp_start = text.index('## Compatibility')
-          comp_end = text.index('## Header Structure', comp_start)
-          compatibility = '''## Compatibility
-
-ESPressio ESP-Now `0.5.1` targets the ESP32 family under Arduino-ESP32 and requires C++17.
-
-The common ESP-NOW transport uses Espressif ESP-NOW/Wi-Fi APIs plus FreeRTOS queues/tasks. Core 0.5.1 requires Timing 2.2.3 and Observable 3.0.1 within their current major lines. Event, Command, and Security integrations remain opt-in.
-
-## ESPressio Development Platform
-
-ESPressio libraries are discrete, composable components built around a common design ethos: light-weight, developer-friendly, object-oriented, SOLID, and pay-only-for-selected functionality.
-
-ESPressio ESP-Now owns ESP-NOW-specific peer/radio/framing concerns. Timing owns clock discipline, Event owns Event semantics, Command owns Command semantics, and Security owns cryptography/authentication/replay protection.
-
-## License
-
-ESPressio and its component libraries are licensed under the **Apache License 2.0**. See [LICENSE](LICENSE).
-
-## ESPressio Library Dependencies
-
-### Required
-
-```text
-ESPressio Timing >= 2.2.3 < 3.0.0
-ESPressio Observable >= 3.0.1 < 4.0.0
-Arduino-ESP32
-```
-
-Timing 2.2.3 carries Units 0.2.2 downstream. Serializable remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
-
-### Optional
-
-```text
-Event Transport
-    ESPressio Event >= 5.8.0 < 6.0.0
-
-Command Transport
-    ESPressio Command >= 0.3.0 < 1.0.0
-
-Secure Transport
-    ESPressio Security >= 0.2.0 < 1.0.0
-```
-
-## Namespace
-
-```cpp
-ESPressio::ESPNow
-```
-
-## PlatformIO
-
-Core ESP-NOW/Timing usage:
-
-```ini
-lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1
-    https://github.com/Flowduino/ESPressio-Timing@^2.2.3
-    https://github.com/Flowduino/ESPressio-Observable@^3.0.1
-
-build_flags =
-    -std=gnu++17
-
-build_unflags =
-    -std=gnu++11
-    -fno-rtti
-```
-
-Add Event, Command, or Security dependencies only when their corresponding adapters are selected.
-
-'''
-          text = text[:comp_start] + compatibility + text[comp_end:]
+          replacements = [
+              ('ESPressio ESP-Now `0.4.0` targets the ESP32 family under Arduino-ESP32 and requires C++17.', 'ESPressio ESP-Now `0.5.1` targets the ESP32 family under Arduino-ESP32 and requires C++17.'),
+              ('### Required for stable 0.4.0', '### Required for 0.5.1'),
+              ('ESPressio Timing >= 2.2.2 < 3.0.0\nArduino-ESP32', 'ESPressio Timing >= 2.2.3 < 3.0.0\nESPressio Observable >= 3.0.1 < 4.0.0\nArduino-ESP32'),
+              ('### Optional for stable 0.4.0', '### Optional for 0.5.1'),
+              ('ESPressio Event >= 5.7.1 < 6.0.0', 'ESPressio Event >= 5.8.0 < 6.0.0'),
+              ('ESPressio Command >= 0.2.0 < 1.0.0', 'ESPressio Command >= 0.3.0 < 1.0.0'),
+              ('ESPressio Security >= 0.1.0 < 1.0.0', 'ESPressio Security >= 0.2.0 < 1.0.0'),
+              ('https://github.com/Flowduino/ESPressio-ESP-Now@^0.4.0', 'https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1'),
+              ('https://github.com/Flowduino/ESPressio-Timing@^2.2.2', 'https://github.com/Flowduino/ESPressio-Timing@^2.2.3'),
+              ('The 0.5.0 development branch additionally exposes `IESPNowTransportObserver` through the core transport.', '`IESPNowTransportObserver` is part of the current 0.5.x core transport API.'),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'missing expected README text: {old}')
+              text = text.replace(old, new, 1)
           path.write_text(text)
       - name: Commit README
         run: |
