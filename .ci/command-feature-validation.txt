@@ -4,7 +4,7 @@
 -- Check for working CXX compiler: /usr/bin/c++ - skipped
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
--- Configuring done (0.9s)
+-- Configuring done (0.8s)
 -- Generating done (0.0s)
 -- Build files have been written to: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
 configure_exit=0
@@ -15,13 +15,13 @@ build_exit=0
 Internal ctest changing into directory: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
 Test project /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/build
     Start 1: ESPNowCommandTransport
-1/1 Test #1: ESPNowCommandTransport ...........Subprocess aborted***Exception:   0.08 sec
-test_command_transport: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/tests/test_command_transport.cpp:158: int main(): Assertion `aToB.size() > 1' failed.
+1/1 Test #1: ESPNowCommandTransport ...........Subprocess aborted***Exception:   0.10 sec
+test_command_transport: /home/runner/work/ESPressio-ESP-Now/ESPressio-ESP-Now/tests/test_command_transport.cpp:183: main()::<lambda(const ESPressio::ESPNow::ESPNowCommandInvocationContext&)>: Assertion `context.Metadata.RemotePeer == peerA' failed.
 
 
 0% tests passed, 1 tests failed out of 1
 
-Total Test time (real) =   0.15 sec
+Total Test time (real) =   0.22 sec
 
 The following tests FAILED:
 	  1 - ESPNowCommandTransport (Subprocess aborted)
