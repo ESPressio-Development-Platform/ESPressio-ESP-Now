@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 — 2026-08-20
+
+### Added
+- Added opt-in ESPressio Command integration targeting Command >= 0.2.0 < 1.0.0.
+- Added `ESPNowProtocol::CommandTransport`.
+- Added `ESPNowCommandProtocol`, a compact versioned binary request/result protocol with no Serializable or ArduinoJson dependency.
+- Added `ESPNowCommandEndpoint`, a host-testable Command endpoint implementing asynchronous invocation, correlated results, bounded fragmentation/reassembly, per-peer state isolation, timeouts, policy hooks, result observation, and duplicate-request suppression/result replay.
+- Added `ESPNowCommandTransport`, a thin adapter over the existing shared `ESPNowTransport` protocol-handler/send infrastructure.
+- Added bounded outstanding-request, reassembly and duplicate-result caches.
+- Added configurable request, reassembly and duplicate-cache timeouts.
+- Added peer/request metadata for remote Command authorization, auditing and diagnostics.
+- Added comprehensive host tests and permanent GitHub Actions validation against released ESPressio Command 0.2.0.
+- Added a two-peer Command example and dedicated Command integration documentation.
+
+### Changed
+- Bumped package and compile-time version metadata to 0.3.0.
+- Updated README/dependency documentation for optional Command transport.
+- Preserved existing ESP-NOW transport, clock synchronization and Event Transport APIs.
+- Kept ESPressio Command optional; the normal `ESPressio_ESPNow.hpp` umbrella does not include Command integration headers.
+
+### Compatibility
+- Existing 0.2.x transport, synchronization and Event Transport source usage remains supported.
+- Command integration is opt-in and adds no mandatory Serializable dependency.
+
 ## 0.2.3 — 2026-08-20
 
 ### Changed
