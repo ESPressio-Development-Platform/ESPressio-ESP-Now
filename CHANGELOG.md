@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 — 2026-08-20
+
+### Changed
+- Raised the required ESPressio Timing baseline from 2.2.2 to 2.2.3, carrying the Units 0.2.2 / Serializable 0.10.1 dependency refresh downstream.
+- Preserved the required ESPressio Observable baseline at `>=3.0.1 <4.0.0`.
+- Preserved Command >= 0.3.0 < 1.0.0 and Security >= 0.2.0 < 1.0.0 as opt-in integration baselines.
+- Updated package and compile-time version metadata to 0.5.1.
+- Documented the existing reciprocal optional Event/ESP-Now integration as an architectural dependency-cycle exception pending downstream relocation of the ESP-Now-specific Observer-to-Event bridge.
+
+### Compatibility
+- ESP-NOW transport, clock synchronization, Event Transport, Command Transport, Security integration, and Observable APIs remain source-compatible with 0.5.0.
+- Event remains opt-in; no new mandatory Event dependency is introduced.
+
 ## 0.5.0 — 2026-08-20
 
 ### Added
@@ -102,7 +115,7 @@ Versioning](https://semver.org/).
 - Existing ESP-NOW System Clock synchronization remains unchanged.
 - Event Transport remains opt-in; applications using only ESP-NOW/Timing functionality do not acquire ESPressio Event or Serializable dependencies.
 
-## \[0.2.0\] - 2026-08-19
+## [0.2.0] - 2026-08-19
 
 ### Added
 
@@ -126,7 +139,7 @@ Versioning](https://semver.org/).
 -   Preserved receive-callback isolation and existing Timing/System
     Clock synchronization.
 
-## \[0.1.0\] - 2026-08-18
+## [0.1.0] - 2026-08-18
 
 ### Added
 
