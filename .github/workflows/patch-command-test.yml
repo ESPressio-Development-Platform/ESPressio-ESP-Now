@@ -1,0 +1,24 @@
+name: Patch Command Test
+
+on:
+  push:
+    branches: [feature/command-transport]
+    paths: ['.github/workflows/patch-command-test.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/command-transport
+      - run: |
+          sed -i 's/MaximumProtocolPayloadBytes = 64/MaximumProtocolPayloadBytes = 40/' tests/test_command_transport.cpp
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- tests/test_command_transport.cpp
+          git commit -m "test: force deterministic Command fragmentation"
+          git push origin HEAD:feature/command-transport
