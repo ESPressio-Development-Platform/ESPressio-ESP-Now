@@ -7,14 +7,26 @@ on:
     branches: [main]
 
 jobs:
-  esp32-event-transport:
+  event-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify core umbrella remains Event-free
+        shell: bash
+        run: |
+          if grep -E 'ESPressio_(Event|SerializableEvent|ESPNowEvents|ESPNowTransportEventBridge)' src/ESPressio_ESPNow.hpp; then
+            echo 'Core ESPNow umbrella must not acquire optional Event integration headers.' >&2
+            exit 1
+          fi
+
+  esp32-event-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Event
-          ref: 5.8.3
+          ref: reintegration/6.0.0-event-architecture
           path: deps/ESPressio-Event
       - uses: actions/checkout@v4
         with:
@@ -70,6 +82,8 @@ jobs:
           #include <Arduino.h>
           #include <ESPressio_ESPNow.hpp>
           #include <ESPressio_ESPNowEventTransport.hpp>
+          #include <ESPressio_ESPNowEvents.hpp>
+          #include <ESPressio_ESPNowTransportEventBridge.hpp>
           #include <ESPressio_EventTransport.hpp>
 
           using namespace ESPressio;
@@ -88,5 +102,5 @@ jobs:
               delay(10);
           }
           EOF
-      - name: Compile EventTransport against Event 5.8.3
+      - name: Compile Event Transport, Event types and lifecycle bridge against Event 6.0.0 candidate
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-event-ci"
