@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.2 — 2026-08-21
+
+### Changed
+- Raised the required ESPressio Timing baseline from 2.2.3 to 2.2.4, carrying the Units 0.2.3 / Serializable 0.10.2 dependency refresh downstream.
+- Preserved the required ESPressio Observable baseline at `>=3.0.1 <4.0.0`.
+- Preserved Command >= 0.3.0 < 1.0.0 and Security >= 0.2.0 < 1.0.0 as opt-in integration baselines.
+- Kept Event as an opt-in compatible 5.x integration rather than introducing a hard Event 5.8.2 dependency.
+- Updated package, compile-time version metadata, README and dependency documentation to 0.5.2.
+- Preserved the documented dependency-cycle resolution direction: ESP-Now-specific Event bridge code belongs downstream with ESP-Now's Event integration.
+
+### Compatibility
+- ESP-NOW transport, clock synchronization, Event Transport, Command Transport, Security integration, and Observable APIs remain source-compatible with 0.5.1.
+- Event remains opt-in; no new mandatory Event dependency is introduced.
+
 ## 0.5.1 — 2026-08-20
 
 ### Changed
