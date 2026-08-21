@@ -9,6 +9,12 @@ target_compile_options(test_core_types PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_include_directories(test_core_types PRIVATE stubs ../src)
 add_test(NAME ESPNowCoreTypes COMMAND test_core_types)
 
+add_executable(test_peer_liveness test_peer_liveness.cpp)
+target_compile_features(test_peer_liveness PRIVATE cxx_std_17)
+target_compile_options(test_peer_liveness PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_include_directories(test_peer_liveness PRIVATE stubs ../src)
+add_test(NAME ESPNowPeerLiveness COMMAND test_peer_liveness)
+
 add_executable(test_security_protocol test_security_protocol.cpp)
 target_compile_features(test_security_protocol PRIVATE cxx_std_17)
 target_compile_options(test_security_protocol PRIVATE -Wall -Wextra -Wpedantic -Werror)
