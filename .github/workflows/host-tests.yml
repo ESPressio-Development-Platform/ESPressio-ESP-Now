@@ -13,75 +13,98 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Command
-          ref: 0.3.0
+          ref: 0.4.0
           path: deps/ESPressio-Command
-
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Observable
           ref: 3.0.1
           path: deps/ESPressio-Observable
-
       - name: Configure
         run: >-
           cmake -S tests -B build
           -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src"
           -DESPRESSIO_OBSERVABLE_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Observable/src"
-
       - name: Build
         run: cmake --build build --parallel
-
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-  esp32-command-example:
+  dependency-boundaries:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify core umbrella remains integration-neutral
+        shell: bash
+        run: |
+          if grep -E 'ESPressio_(Event|Command|Security)' src/ESPressio_ESPNow.hpp; then
+            echo 'Core ESP-Now umbrella must not acquire optional integration dependencies.' >&2
+            exit 1
+          fi
+          test -f src/ESPressio_ESPNowEventTransport.hpp
+          test -f src/ESPressio_ESPNowEvents.hpp
+          test -f src/ESPressio_ESPNowTransportEventBridge.hpp
 
+  esp32-integrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project/ESPressio-ESPNow
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Event
+          ref: 6.0.0
+          path: project/dependencies/ESPressio-Event
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Command
+          ref: 0.4.0
+          path: project/dependencies/ESPressio-Command
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Security
           ref: 0.3.0
-          path: deps/ESPressio-Command
-
-      - uses: actions/checkout@v4
-        with:
-          repository: Flowduino/ESPressio-Timing
-          ref: 2.2.4
-          path: deps/ESPressio-Timing
-
-      - uses: actions/checkout@v4
-        with:
-          repository: Flowduino/ESPressio-Units
-          ref: 0.2.3
-          path: deps/ESPressio-Units
-
+          path: project/dependencies/ESPressio-Security
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Observable
           ref: 3.0.1
-          path: deps/ESPressio-Observable
-
+          path: project/dependencies/ESPressio-Observable
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Serializable
+          ref: 0.10.2
+          path: project/dependencies/ESPressio-Serializable
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Units
+          ref: 0.2.3
+          path: project/dependencies/ESPressio-Units
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Timing
+          ref: 2.2.4
+          path: project/dependencies/ESPressio-Timing
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Threads
+          ref: 3.1.4
+          path: project/dependencies/ESPressio-Threads
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - name: Install PlatformIO
         run: pip install platformio
-
-      - name: Create PlatformIO consumer project
+      - name: Create integration compile project
         shell: bash
         run: |
-          PROJECT="$RUNNER_TEMP/espressio-espnow-command-ci"
-          mkdir -p "$PROJECT/src" "$PROJECT/lib"
-          rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
-          cp -R deps/ESPressio-Command "$PROJECT/lib/ESPressio-Command"
-          cp -R deps/ESPressio-Timing "$PROJECT/lib/ESPressio-Timing"
-          cp -R deps/ESPressio-Units "$PROJECT/lib/ESPressio-Units"
-          cp -R deps/ESPressio-Observable "$PROJECT/lib/ESPressio-Observable"
-          cat > "$PROJECT/platformio.ini" <<'EOF'
-          [env:esp32dev]
+          mkdir -p project/compile/src
+          cat > project/compile/platformio.ini <<'EOF'
+          [env:esp32]
           platform = espressif32
           board = esp32dev
           framework = arduino
@@ -92,9 +115,27 @@ jobs:
               -std=gnu++11
               -fno-rtti
           lib_ldf_mode = deep+
+          lib_deps =
+              ../dependencies/ESPressio-Observable
+              ../dependencies/ESPressio-Serializable
+              ../dependencies/ESPressio-Units
+              ../dependencies/ESPressio-Timing
+              ../dependencies/ESPressio-Threads
+              ../dependencies/ESPressio-Event
+              ../dependencies/ESPressio-Command
+              ../dependencies/ESPressio-Security
+              ../ESPressio-ESPNow
           EOF
-          cp examples/CommandPeer/CommandPeer.ino "$PROJECT/src/main.cpp"
-
-      - name: Compile CommandPeer example
-        shell: bash
-        run: pio run -d "$RUNNER_TEMP/espressio-espnow-command-ci"
+          cat > project/compile/src/main.cpp <<'EOF'
+          #include <Arduino.h>
+          #include <ESPressio_ESPNow.hpp>
+          #include <ESPressio_ESPNowEventTransport.hpp>
+          #include <ESPressio_ESPNowEvents.hpp>
+          #include <ESPressio_ESPNowTransportEventBridge.hpp>
+          #include <ESPressio_ESPNowCommandTransport.hpp>
+          #include <ESPressio_ESPNowSecureTransport.hpp>
+          void setup() {}
+          void loop() {}
+          EOF
+      - name: Compile ESP32 integrations
+        run: pio run -d project/compile
