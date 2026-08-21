@@ -14,37 +14,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Update current dependency references
+      - name: Clean current dependency wording
         shell: python
         run: |
           from pathlib import Path
           path = Path('README.md')
           text = path.read_text()
-          replacements = {
-              '## Current Version — 0.5.1': '## Current Version — 0.5.2',
-              'ESPressio ESP-Now **0.5.1** is a dependency-maintenance patch over 0.5.0. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.3.': 'ESPressio ESP-Now **0.5.2** is a dependency-maintenance patch over 0.5.1. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.4.',
-              'ESPressio Timing >= 2.2.3 < 3.0.0': 'ESPressio Timing >= 2.2.4 < 3.0.0',
-              'rather than being tightened to Event 5.8.1': 'rather than being tightened to Event 5.8.2',
-              'ESPressio ESP-Now `0.5.1` targets': 'ESPressio ESP-Now `0.5.2` targets',
-              '### Required for 0.5.1': '### Required for 0.5.2',
-              'Timing 2.2.3 carries Units 0.2.2 downstream.': 'Timing 2.2.4 carries Units 0.2.3 downstream, with Serializable 0.10.2 remaining opt-in through Serializable Unit/Event facilities.',
-              '### Optional for 0.5.1': '### Optional for 0.5.2',
-              'https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1': 'https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2',
-              'https://github.com/Flowduino/ESPressio-Timing@^2.2.3': 'https://github.com/Flowduino/ESPressio-Timing@^2.2.4',
-              'The 0.5.1 candidate validates': 'The 0.5.2 candidate validates',
-              '0.5.1 is a backward-compatible dependency-maintenance patch:': '0.5.2 is a backward-compatible dependency-maintenance patch:'
-          }
-          for old, new in replacements.items():
-              if old not in text:
-                  raise SystemExit(f'Missing expected README text: {old}')
-              text = text.replace(old, new)
-          path.write_text(text)
-      - name: Commit README update
+          old = 'Timing 2.2.4 carries Units 0.2.3 downstream, with Serializable 0.10.2 remaining opt-in through Serializable Unit/Event facilities. Serializable remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.'
+          new = 'Timing 2.2.4 carries Units 0.2.3 downstream. Serializable 0.10.2 remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.'
+          if old not in text:
+              raise SystemExit('Missing expected duplicated dependency wording')
+          path.write_text(text.replace(old, new, 1))
+      - name: Commit README cleanup
         shell: bash
         run: |
           if git diff --quiet -- README.md; then exit 0; fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add README.md
-          git commit -m 'docs: refresh ESP-Now 0.5.2 dependency references (#12)'
+          git commit -m 'docs: clean ESP-Now 0.5.2 dependency wording (#12)'
           git push
