@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.0 — 2026-08-21
+
+### Added
+- Moved the ESP-Now lifecycle Event family into ESPressio ESP-Now, making the domain library the owner of its concrete Event representations.
+- Moved `ESPNowTransportEventBridge` into ESPressio ESP-Now alongside `ESPNowEventTransport`.
+- Preserved the existing ESP-Now-specific public header and class names because they remain semantically unambiguous after relocation.
+
+### Changed
+- Updated the optional Event integration baseline to ESPressio Event >= 6.0.0 < 7.0.0.
+- Updated the optional Command integration baseline to ESPressio Command >= 0.4.0 < 1.0.0.
+- Updated the optional Security integration baseline to ESPressio Security >= 0.3.0 < 1.0.0.
+- Removed the former reciprocal Event -> ESP-Now dependency direction: ESP-Now now owns all ESP-Now-specific Event integration while Event remains transport-neutral.
+- Updated package/component metadata, README, CI and textual/graphical dependency documentation for 0.6.0.
+- Retained required Timing >= 2.2.4 < 3.0.0 and Observable >= 3.0.1 < 4.0.0 baselines.
+
+### Compatibility
+- Core ESP-NOW transport, clock synchronization, wire framing, protocol identifiers and peer-liveness behavior remain unchanged from 0.5.3.
+- Existing `ESPressio_ESPNowEvents.hpp` and `ESPressio_ESPNowTransportEventBridge.hpp` names are preserved, but applications must obtain them from ESPressio ESP-Now 0.6.0 rather than ESPressio Event.
+- Event, Command and Security remain opt-in integrations and are not introduced by the core `ESPressio_ESPNow.hpp` umbrella.
+
 ## 0.5.3 — 2026-08-21
 
 ### Added
@@ -128,8 +148,7 @@
 All notable changes to this project are documented in this file.
 
 The structure follows the principles of [Keep a
-Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic
-Versioning](https://semver.org/).
+Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
 > **Historical note:** This changelog was reconstructed retrospectively
 > from published GitHub Releases, tags, release notes, repository
