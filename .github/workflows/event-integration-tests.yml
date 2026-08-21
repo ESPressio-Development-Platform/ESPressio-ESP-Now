@@ -1,0 +1,70 @@
+name: Event Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  esp32-event-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Event
+          ref: 5.8.3
+          path: deps/ESPressio-Event
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Threads
+          ref: 3.1.4
+          path: deps/ESPressio-Threads
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Timing
+          ref: 2.2.4
+          path: deps/ESPressio-Timing
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Units
+          ref: 0.2.3
+          path: deps/ESPressio-Units
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Observable
+          ref: 3.0.1
+          path: deps/ESPressio-Observable
+      - uses: actions/checkout@v4
+        with:
+          repository: Flowduino/ESPressio-Serializable
+          ref: 0.10.2
+          path: deps/ESPressio-Serializable
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Create PlatformIO consumer project
+        shell: bash
+        run: |
+          PROJECT="$RUNNER_TEMP/espressio-espnow-event-ci"
+          mkdir -p "$PROJECT/src" "$PROJECT/lib"
+          rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
+          for DEP in ESPressio-Event ESPressio-Threads ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Serializable; do
+            cp -R "deps/$DEP" "$PROJECT/lib/$DEP"
+          done
+          cat > "$PROJECT/platformio.ini" <<'EOF'
+          [env:esp32dev]
+          platform = espressif32
+          board = esp32dev
+          framework = arduino
+          build_flags =
+              -std=gnu++17
+              -frtti
+          build_unflags =
+              -std=gnu++11
+              -fno-rtti
+          lib_ldf_mode = deep+
+          EOF
+          cp examples/EventTransport/EventTransport.ino "$PROJECT/src/main.cpp"
+      - name: Compile EventTransport against Event 5.8.3
+        run: pio run -d "$RUNNER_TEMP/espressio-espnow-event-ci"
