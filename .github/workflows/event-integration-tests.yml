@@ -66,6 +66,27 @@ jobs:
               -fno-rtti
           lib_ldf_mode = deep+
           EOF
-          cp examples/EventTransport/EventTransport.ino "$PROJECT/src/main.cpp"
+          cat > "$PROJECT/src/main.cpp" <<'EOF'
+          #include <Arduino.h>
+          #include <ESPressio_ESPNow.hpp>
+          #include <ESPressio_ESPNowEventTransport.hpp>
+          #include <ESPressio_EventTransport.hpp>
+
+          using namespace ESPressio;
+
+          ESPNow::ESPNowEventTransport eventTransport;
+
+          void setup() {
+              auto& espNow = ESPNow::ESPNowTransport::GetInstance();
+              auto& eventTransports = Event::EventTransportManager::GetInstance();
+
+              eventTransport.Initialize(espNow);
+              eventTransports.RegisterTransport(&eventTransport);
+          }
+
+          void loop() {
+              delay(10);
+          }
+          EOF
       - name: Compile EventTransport against Event 5.8.3
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-event-ci"
