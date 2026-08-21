@@ -20,15 +20,24 @@ jobs:
           from pathlib import Path
           path = Path('README.md')
           text = path.read_text()
-          required = ['0.5.1', '2.2.3', '0.2.2', '0.10.1', 'Event 5.8.1']
-          for value in required:
-              if value not in text:
-                  raise SystemExit(f'Missing expected README text: {value}')
-          text = text.replace('0.5.1', '0.5.2')
-          text = text.replace('2.2.3', '2.2.4')
-          text = text.replace('0.2.2', '0.2.3')
-          text = text.replace('0.10.1', '0.10.2')
-          text = text.replace('Event 5.8.1', 'Event 5.8.2')
+          replacements = {
+              '## Current Version — 0.5.1': '## Current Version — 0.5.2',
+              'ESPressio ESP-Now **0.5.1** is a dependency-maintenance patch over 0.5.0. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.3.': 'ESPressio ESP-Now **0.5.2** is a dependency-maintenance patch over 0.5.1. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.4.',
+              'ESPressio Timing >= 2.2.3 < 3.0.0': 'ESPressio Timing >= 2.2.4 < 3.0.0',
+              'rather than being tightened to Event 5.8.1': 'rather than being tightened to Event 5.8.2',
+              'ESPressio ESP-Now `0.5.1` targets': 'ESPressio ESP-Now `0.5.2` targets',
+              '### Required for 0.5.1': '### Required for 0.5.2',
+              'Timing 2.2.3 carries Units 0.2.2 downstream.': 'Timing 2.2.4 carries Units 0.2.3 downstream, with Serializable 0.10.2 remaining opt-in through Serializable Unit/Event facilities.',
+              '### Optional for 0.5.1': '### Optional for 0.5.2',
+              'https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1': 'https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2',
+              'https://github.com/Flowduino/ESPressio-Timing@^2.2.3': 'https://github.com/Flowduino/ESPressio-Timing@^2.2.4',
+              'The 0.5.1 candidate validates': 'The 0.5.2 candidate validates',
+              '0.5.1 is a backward-compatible dependency-maintenance patch:': '0.5.2 is a backward-compatible dependency-maintenance patch:'
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing expected README text: {old}')
+              text = text.replace(old, new)
           path.write_text(text)
       - name: Commit README update
         shell: bash
