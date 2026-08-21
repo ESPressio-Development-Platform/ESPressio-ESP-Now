@@ -4,15 +4,15 @@ ESP-NOW transport and distributed ESPressio implementations for the Flowduino ES
 
 ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-family applications, distributed System Clock synchronization, optional Event and Command transports, and optional transport-neutral authenticated encryption through ESPressio Security.
 
-## Current Version — 0.5.1
+## Current Version — 0.5.2
 
-ESPressio ESP-Now **0.5.1** is a dependency-maintenance patch over 0.5.0. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.3.
+ESPressio ESP-Now **0.5.2** is a dependency-maintenance patch over 0.5.1. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.4.
 
 Current dependency model:
 
 ```text
 Required
-    ESPressio Timing >= 2.2.3 < 3.0.0
+    ESPressio Timing >= 2.2.4 < 3.0.0
     ESPressio Observable >= 3.0.1 < 4.0.0
 
 Optional Event Transport
@@ -27,11 +27,11 @@ Optional Secure Transport
 
 `ESPNowTransport` exposes observable initialization, shutdown, peer-add/remove, and send success/failure lifecycle information. Protocol receive handlers remain the authoritative data-delivery mechanism.
 
-The Event relationship deliberately remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.1: Event currently also hosts an ESP-Now-specific Observer bridge. Strengthening both directions would reinforce a circular optional dependency. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration, or into a dedicated integration package.
+The Event relationship deliberately remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.2: Event currently also hosts an ESP-Now-specific Observer bridge. Strengthening both directions would reinforce a circular optional dependency. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration, or into a dedicated integration package.
 
 ## Compatibility
 
-ESPressio ESP-Now `0.5.1` targets the ESP32 family under Arduino-ESP32 and requires C++17.
+ESPressio ESP-Now `0.5.2` targets the ESP32 family under Arduino-ESP32 and requires C++17.
 
 The common ESP-NOW transport uses Espressif ESP-NOW/Wi-Fi APIs plus FreeRTOS queues/tasks. The initial ESPressio wire format remains within the classic 250-byte ESP-NOW payload limit for broad compatibility, while higher-level Event, Command, and Security integrations provide their own bounded fragmentation where required.
 
@@ -52,17 +52,17 @@ ESPressio and its component libraries are licensed under the **Apache License 2.
 
 ## ESPressio Library Dependencies
 
-### Required for 0.5.1
+### Required for 0.5.2
 
 ```text
-ESPressio Timing >= 2.2.3 < 3.0.0
+ESPressio Timing >= 2.2.4 < 3.0.0
 ESPressio Observable >= 3.0.1 < 4.0.0
 Arduino-ESP32
 ```
 
-Timing 2.2.3 carries Units 0.2.2 downstream. Serializable remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
+Timing 2.2.4 carries Units 0.2.3 downstream. Serializable 0.10.2 remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
 
-### Optional for 0.5.1
+### Optional for 0.5.2
 
 ```text
 Event Transport
@@ -110,8 +110,8 @@ Core ESP-NOW/Timing usage:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1
-    https://github.com/Flowduino/ESPressio-Timing@^2.2.3
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
+    https://github.com/Flowduino/ESPressio-Timing@^2.2.4
     https://github.com/Flowduino/ESPressio-Observable@^3.0.1
 
 build_flags =
@@ -126,7 +126,7 @@ Add Security when selecting the secure adapter:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
     https://github.com/Flowduino/ESPressio-Security@^0.2.0
 ```
 
@@ -360,11 +360,11 @@ ESPNowSecurityProtocol
 
 Security-protocol tests cover protocol allocation, fragmentation, out-of-order reassembly, duplicate fragments, malformed frames, and maximum envelope bounds.
 
-The 0.5.1 candidate validates the native transport observer contract and the refreshed Timing/Units/Observable dependency generation. GitHub Actions also compile real ESP32 examples against the coordinated dependencies.
+The 0.5.2 candidate validates the native transport observer contract and the refreshed Timing/Units/Observable dependency generation. GitHub Actions also compile real ESP32 examples against the coordinated dependencies.
 
 ## Compatibility
 
-0.5.1 is a backward-compatible dependency-maintenance patch:
+0.5.2 is a backward-compatible dependency-maintenance patch:
 
 - core `ESPNowTransport` APIs are unchanged from 0.5.0;
 - clock synchronization APIs are unchanged;

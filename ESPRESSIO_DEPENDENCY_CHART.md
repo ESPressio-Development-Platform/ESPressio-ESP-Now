@@ -1,12 +1,12 @@
-# ESPressio Dependency Chart — ESP-Now 0.5.1
+# ESPressio Dependency Chart — ESP-Now 0.5.2
 
 ESPressio ESP-Now keeps its core dependencies small and exposes higher-level
 integrations only when explicitly selected.
 
 ```text
-ESPressio ESP-Now 0.5.1
+ESPressio ESP-Now 0.5.2
 |
-+-- required --> ESPressio Timing >= 2.2.3 < 3.0.0
++-- required --> ESPressio Timing >= 2.2.4 < 3.0.0
 |
 +-- required --> ESPressio Observable >= 3.0.1 < 4.0.0
 |
@@ -21,7 +21,7 @@ ESPressio ESP-Now 0.5.1
 ```
 
 The Event baseline intentionally remains a compatible 5.x range here rather
-than creating a hard ESP-Now 0.5.1 -> Event 5.8.1 release dependency. Event is
+than creating a hard ESP-Now 0.5.2 -> Event 5.8.2 release dependency. Event is
 optional and, importantly, Event 5.8 currently also contains an ESP-Now-specific
 Observer bridge. Strengthening both edges would make the reciprocal dependency
 more difficult to remove.
@@ -29,10 +29,10 @@ more difficult to remove.
 ## Transitive Timing chain
 
 ```text
-ESP-Now 0.5.1
-    -> Timing 2.2.3
-        -> Units 0.2.2
-            - - -> Serializable >= 0.10.1 < 1.0.0
+ESP-Now 0.5.2
+    -> Timing 2.2.4
+        -> Units 0.2.3
+            - - -> Serializable >= 0.10.2 < 1.0.0
                    only for Serializable Unit representations
         -> Observable 3.0.1
 ```
@@ -75,7 +75,8 @@ Applications explicitly select the relevant integration headers.
 
 ## Circular-dependency audit
 
-The current ecosystem contains one reciprocal optional relationship:
+The current ecosystem contains two reciprocal optional relationships involving
+Event integrations:
 
 ```text
 ESP-Now - - -> Event
@@ -85,8 +86,18 @@ Event - - -> ESP-Now
     ESPNowTransportEventBridge
 ```
 
-This is not the desired long-term dependency direction. The preferred hierarchy
-is:
+and, separately:
+
+```text
+Sockets - - -> Event
+    socket Event transports
+
+Event - - -> Sockets
+    SocketWorkerEventBridge
+    SocketSecuritySessionEventBridge
+```
+
+For ESP-Now, the preferred hierarchy is:
 
 ```text
 Event
@@ -111,8 +122,8 @@ Core:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.1
-    https://github.com/Flowduino/ESPressio-Timing@^2.2.3
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
+    https://github.com/Flowduino/ESPressio-Timing@^2.2.4
     https://github.com/Flowduino/ESPressio-Observable@^3.0.1
 ```
 

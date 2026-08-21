@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/10-timing-2.2.3-dependency-refresh
+      - feature/12-timing-2.2.4-dependency-refresh
   pull_request:
     branches:
       - main
@@ -53,13 +53,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Timing
-          ref: 2.2.3
+          ref: 2.2.4
           path: deps/ESPressio-Timing
 
       - uses: actions/checkout@v4
         with:
           repository: Flowduino/ESPressio-Units
-          ref: 0.2.2
+          ref: 0.2.3
           path: deps/ESPressio-Units
 
       - uses: actions/checkout@v4
