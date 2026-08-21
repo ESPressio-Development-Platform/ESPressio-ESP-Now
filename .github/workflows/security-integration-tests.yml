@@ -2,7 +2,7 @@ name: Security Integration
 
 on:
   push:
-    branches: [feature/security-integration, feature/12-timing-2.2.4-dependency-refresh, main]
+    branches: [main]
   pull_request:
     branches: [main]
 
