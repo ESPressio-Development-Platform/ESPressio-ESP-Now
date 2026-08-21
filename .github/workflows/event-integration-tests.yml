@@ -47,10 +47,11 @@ jobs:
         shell: bash
         run: |
           PROJECT="$RUNNER_TEMP/espressio-espnow-event-ci"
-          mkdir -p "$PROJECT/src" "$PROJECT/lib"
-          rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
+          mkdir -p "$PROJECT/src" "$PROJECT/lib/ESPressio-ESPNow"
+          cp -R src "$PROJECT/lib/ESPressio-ESPNow/src"
           for DEP in ESPressio-Event ESPressio-Threads ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Serializable; do
-            cp -R "deps/$DEP" "$PROJECT/lib/$DEP"
+            mkdir -p "$PROJECT/lib/$DEP"
+            cp -R "deps/$DEP/src" "$PROJECT/lib/$DEP/src"
           done
           cat > "$PROJECT/platformio.ini" <<'EOF'
           [env:esp32dev]
