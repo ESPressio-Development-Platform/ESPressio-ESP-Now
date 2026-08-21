@@ -1,16 +1,16 @@
-# ESPressio Dependency Chart — ESP-Now 0.5.2
+# ESPressio Dependency Chart — ESP-Now 0.5.3
 
 ESPressio ESP-Now keeps its core dependencies small and exposes higher-level
 integrations only when explicitly selected.
 
 ```text
-ESPressio ESP-Now 0.5.2
+ESPressio ESP-Now 0.5.3
 |
 +-- required --> ESPressio Timing >= 2.2.4 < 3.0.0
 |
 +-- required --> ESPressio Observable >= 3.0.1 < 4.0.0
 |
-+-- optional --> ESPressio Event >= 5.8.0 < 6.0.0
++-- optional --> ESPressio Event >= 5.8.3 < 6.0.0
 |                  +-- ESPNowEventTransport
 |
 +-- optional --> ESPressio Command >= 0.3.0 < 1.0.0
@@ -20,16 +20,14 @@ ESPressio ESP-Now 0.5.2
                    +-- ESPNowSecureTransport
 ```
 
-The Event baseline intentionally remains a compatible 5.x range here rather
-than creating a hard ESP-Now 0.5.2 -> Event 5.8.2 release dependency. Event is
-optional and, importantly, Event 5.8 currently also contains an ESP-Now-specific
-Observer bridge. Strengthening both edges would make the reciprocal dependency
-more difficult to remove.
+Event remains an optional integration rather than a core ESP-Now dependency.
+The validated Event baseline is now 5.8.3 so applications using Event Transport
+also receive the allocation-free Event lifecycle synchronization fix.
 
 ## Transitive Timing chain
 
 ```text
-ESP-Now 0.5.2
+ESP-Now 0.5.3
     -> Timing 2.2.4
         -> Units 0.2.3
             - - -> Serializable >= 0.10.2 < 1.0.0
@@ -39,6 +37,15 @@ ESP-Now 0.5.2
 
 ESP-Now does not acquire a direct Units or Serializable dependency through this
 chain.
+
+## Peer-liveness reliability
+
+ESP-Now 0.5.3 adds `ESPNowPeerLivenessTracker` and a validated-frame observer
+notification. Discovery advertisements are therefore no longer required to be
+the sole evidence that a known peer is alive: any valid ESPressio ESP-NOW frame
+can refresh liveness. The tracker separates a short `Suspect` interval from
+actual `Expired` state so transient broadcast loss does not require immediate
+peer/destination teardown.
 
 ## Security placement
 
@@ -122,9 +129,15 @@ Core:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.3
     https://github.com/Flowduino/ESPressio-Timing@^2.2.4
     https://github.com/Flowduino/ESPressio-Observable@^3.0.1
+```
+
+Event Transport additionally validates against:
+
+```ini
+    https://github.com/Flowduino/ESPressio-Event@^5.8.3
 ```
 
 Security integration additionally requires:
