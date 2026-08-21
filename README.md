@@ -60,7 +60,7 @@ ESPressio Observable >= 3.0.1 < 4.0.0
 Arduino-ESP32
 ```
 
-Timing 2.2.4 carries Units 0.2.3 downstream, with Serializable 0.10.2 remaining opt-in through Serializable Unit/Event facilities. Serializable remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
+Timing 2.2.4 carries Units 0.2.3 downstream. Serializable 0.10.2 remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
 
 ### Optional for 0.5.2
 
