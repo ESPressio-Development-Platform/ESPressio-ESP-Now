@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.3 — 2026-08-21
+
+### Added
+- Added `ESPNowPeerLivenessTracker`, a bounded reusable peer-liveness tracker with distinct `Alive`, `Suspect`, and `Expired` states.
+- Added `IESPNowTransportObserver::OnESPNowFrameReceived`, emitted after ESPressio wire-header and payload-length validation for every protocol, so discovery, clock, Event, Command, Security, and user traffic can all act as peer-liveness evidence.
+- Added host regression coverage for transient discovery loss, traffic-based liveness refresh, genuine hard expiry, removal, and rediscovery.
+
+### Fixed
+- Fixed the liveness model exposed by EventConsole-Lab hardware testing where several missed discovery broadcasts could cause a healthy peer and Event destination to be removed even while useful addressed traffic was still flowing.
+- Separated short-term suspicion from hard expiry so consumers no longer need to equate a brief discovery gap with peer disappearance.
+
+### Changed
+- Bumped package and compile-time version metadata to 0.5.3.
+- Updated README and textual/graphical dependency documentation for 0.5.3.
+- Updated the validated optional Event integration baseline to Event `>=5.8.3 <6.0.0`, propagating the Event 5.8.3 per-Event lock-resource fix without making Event a mandatory dependency.
+- Required Timing remains `>=2.2.4 <3.0.0`; required Observable remains `>=3.0.1 <4.0.0`.
+
+### Compatibility
+- Existing ESP-NOW transport, clock synchronization, Event Transport, Command Transport, and Security APIs remain source-compatible.
+- The new receive observer callback has a default no-op implementation, so existing `IESPNowTransportObserver` implementations do not need to change.
+- Wire framing and protocol IDs are unchanged.
+
 ## 0.5.2 — 2026-08-21
 
 ### Changed

@@ -16,7 +16,7 @@
         "type": "git",
         "url": "https://github.com/Flowduino/ESPressio-ESP-Now.git"
     },
-    "version": "0.5.2",
+    "version": "0.5.3",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "espressif32",

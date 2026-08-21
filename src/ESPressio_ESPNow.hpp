@@ -9,15 +9,16 @@
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_PATCH
-#define ESPRESSIO_ESPNOW_VERSION_PATCH 0
+#define ESPRESSIO_ESPNOW_VERSION_PATCH 3
 #endif
 
 #ifndef ESPRESSIO_ESPNOW_VERSION_STRING
-#define ESPRESSIO_ESPNOW_VERSION_STRING "0.5.0"
+#define ESPRESSIO_ESPNOW_VERSION_STRING "0.5.3"
 #endif
 
 #include "ESPressio_ESPNowTypes.hpp"
 #include "ESPressio_IESPNowTransportObserver.hpp"
+#include "ESPressio_ESPNowPeerLiveness.hpp"
 #include "ESPressio_ESPNowTransport.hpp"
 #include "ESPressio_ESPNowClockSynchronizer.hpp"
 
@@ -29,6 +30,6 @@
  *   ESPressio_ESPNowCommandTransport.hpp -> ESPressio Command >=0.3.0 <1.0.0
  *   ESPressio_ESPNowSecureTransport.hpp  -> ESPressio Security >=0.2.0 <1.0.0
  *
- * ESPressio Observable is a core dependency in 0.5.0 because transport and
- * peer lifecycle changes are now observable directly from ESPNowTransport.
+ * ESPressio Observable is a core dependency because transport and peer
+ * lifecycle changes are observable directly from ESPNowTransport.
  */

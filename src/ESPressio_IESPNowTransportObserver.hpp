@@ -26,6 +26,18 @@ public:
         const MacAddress&
     ) {}
 
+    /*
+     * Called only after the ESPressio wire header has been validated. This is
+     * intentionally protocol-agnostic: discovery, clock, Event, Command,
+     * Security and user traffic are all valid evidence that a peer is alive.
+     */
+    virtual void OnESPNowFrameReceived(
+        const MacAddress&,
+        uint8_t,
+        std::size_t,
+        uint64_t
+    ) {}
+
     virtual void OnESPNowSendAccepted(
         const MacAddress&,
         uint8_t,

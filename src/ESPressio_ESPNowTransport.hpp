@@ -74,6 +74,7 @@ private:
         void Shutdown() { Notify([](IESPNowTransportObserver* observer){ observer->OnESPNowTransportShutdown(); }); }
         void PeerAdded(const MacAddress& address) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowPeerAdded(address); }); }
         void PeerRemoved(const MacAddress& address) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowPeerRemoved(address); }); }
+        void FrameReceived(const MacAddress& address, uint8_t protocol, std::size_t size, uint64_t timestamp) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowFrameReceived(address, protocol, size, timestamp); }); }
         void SendAccepted(const MacAddress& address, uint8_t protocol, std::size_t size) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowSendAccepted(address, protocol, size); }); }
         void SendFailed(const MacAddress& address, uint8_t protocol, std::size_t size) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowSendFailed(address, protocol, size); }); }
     };
@@ -128,6 +129,16 @@ private:
         if (header.PayloadLength > 0) {
             std::memcpy(received.Payload, frame.Data + sizeof(WireHeader), header.PayloadLength);
         }
+
+        // A frame that reaches this point has a valid ESPressio wire header and
+        // bounded payload. Count it as peer-liveness evidence regardless of
+        // protocol before handing it to the protocol-specific consumer.
+        _observable->FrameReceived(
+            received.Source,
+            received.Protocol,
+            received.PayloadLength,
+            received.ReceiveMonotonicNanoseconds
+        );
 
         ProtocolHandler handler;
         {
