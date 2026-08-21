@@ -1,0 +1,1 @@
+This file is a release-preparation safeguard for #17. Its content must be folded into the top of `CHANGELOG.md` before PR #17 is declared merge-ready, then this staging file and the root `CHANGELOG-0.6.0.md` must be removed. It exists only because the current remote file API performs whole-file replacement and the historical changelog must not be truncated.
