@@ -4,9 +4,9 @@ ESP-NOW transport and distributed ESPressio implementations for the Flowduino ES
 
 ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-family applications, distributed System Clock synchronization, optional Event and Command transports, and optional transport-neutral authenticated encryption through ESPressio Security.
 
-## Current Version — 0.5.2
+## Current Version — 0.5.3
 
-ESPressio ESP-Now **0.5.2** is a dependency-maintenance patch over 0.5.1. It retains the Observable transport/peer lifecycle API while raising the required Timing baseline to 2.2.4.
+ESPressio ESP-Now **0.5.3** is a reliability patch over 0.5.2. It fixes false peer expiry when discovery advertisements are transiently missed by separating peer liveness into `Alive`, `Suspect`, and `Expired` states and by treating any validated ESPressio ESP-NOW frame as positive liveness evidence.
 
 Current dependency model:
 
@@ -16,7 +16,7 @@ Required
     ESPressio Observable >= 3.0.1 < 4.0.0
 
 Optional Event Transport
-    ESPressio Event >= 5.8.0 < 6.0.0
+    ESPressio Event >= 5.8.3 < 6.0.0
 
 Optional Command Transport
     ESPressio Command >= 0.3.0 < 1.0.0
@@ -25,13 +25,15 @@ Optional Secure Transport
     ESPressio Security >= 0.2.0 < 1.0.0
 ```
 
-`ESPNowTransport` exposes observable initialization, shutdown, peer-add/remove, and send success/failure lifecycle information. Protocol receive handlers remain the authoritative data-delivery mechanism.
+`ESPNowTransport` exposes observable initialization, shutdown, peer-add/remove, send success/failure lifecycle information, and every validated inbound ESPressio frame through `IESPNowTransportObserver::OnESPNowFrameReceived`. Protocol receive handlers remain the authoritative data-delivery mechanism.
 
-The Event relationship deliberately remains a compatible 5.x opt-in range rather than being tightened to Event 5.8.2: Event currently also hosts an ESP-Now-specific Observer bridge. Strengthening both directions would reinforce a circular optional dependency. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration, or into a dedicated integration package.
+0.5.3 introduces the reusable `ESPNowPeerLivenessTracker`. A missed discovery window can move a peer into `Suspect`, but only sustained absence reaches `Expired`; valid addressed protocol traffic refreshes liveness immediately. This prevents temporary broadcast loss from tearing down a still-healthy destination.
+
+The Event relationship deliberately remains a compatible 5.x opt-in range rather than becoming a core dependency. The validated baseline is Event 5.8.3. Event currently also hosts an ESP-Now-specific Observer bridge, so strengthening both directions further would reinforce a circular optional dependency. The preferred future architecture moves `ESPNowTransportEventBridge` downstream into ESP-Now's optional Event integration, or into a dedicated integration package.
 
 ## Compatibility
 
-ESPressio ESP-Now `0.5.2` targets the ESP32 family under Arduino-ESP32 and requires C++17.
+ESPressio ESP-Now `0.5.3` targets the ESP32 family under Arduino-ESP32 and requires C++17.
 
 The common ESP-NOW transport uses Espressif ESP-NOW/Wi-Fi APIs plus FreeRTOS queues/tasks. The initial ESPressio wire format remains within the classic 250-byte ESP-NOW payload limit for broad compatibility, while higher-level Event, Command, and Security integrations provide their own bounded fragmentation where required.
 
@@ -52,7 +54,7 @@ ESPressio and its component libraries are licensed under the **Apache License 2.
 
 ## ESPressio Library Dependencies
 
-### Required for 0.5.2
+### Required for 0.5.3
 
 ```text
 ESPressio Timing >= 2.2.4 < 3.0.0
@@ -62,11 +64,11 @@ Arduino-ESP32
 
 Timing 2.2.4 carries Units 0.2.3 downstream. Serializable 0.10.2 remains optional through selected Serializable Unit/Event facilities and is not a core ESP-Now dependency.
 
-### Optional for 0.5.2
+### Optional for 0.5.3
 
 ```text
 Event Transport
-    ESPressio Event >= 5.8.0 < 6.0.0
+    ESPressio Event >= 5.8.3 < 6.0.0
 
 Command Transport
     ESPressio Command >= 0.3.0 < 1.0.0
@@ -93,6 +95,8 @@ ESPNowTransportConfig
 ESPNowPeerConfig
 ESPNowReceivedFrame
 ESPNowProtocol
+ESPNowPeerLivenessTracker
+ESPNowPeerLivenessState
 MacAddress
 ESPNowClockSynchronizer
 ESPNowClockSynchronizationConfig
@@ -102,7 +106,7 @@ ESPNowSecureTransport              (optional Security dependency)
 ESPNowSecurityProtocol
 ```
 
-`IESPNowTransportObserver` is part of the current 0.5.x core transport API.
+`IESPNowTransportObserver` is part of the current 0.5.x core transport API. In 0.5.3, `OnESPNowFrameReceived` allows higher-level integrations to observe every validated inbound ESPressio frame without replacing protocol handlers.
 
 ## PlatformIO
 
@@ -110,7 +114,7 @@ Core ESP-NOW/Timing usage:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.3
     https://github.com/Flowduino/ESPressio-Timing@^2.2.4
     https://github.com/Flowduino/ESPressio-Observable@^3.0.1
 
@@ -126,11 +130,11 @@ Add Security when selecting the secure adapter:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.2
+    https://github.com/Flowduino/ESPressio-ESP-Now@^0.5.3
     https://github.com/Flowduino/ESPressio-Security@^0.2.0
 ```
 
-Add Command/Event dependencies only when those adapters are selected.
+Add Command/Event dependencies only when those adapters are selected. The Event integration is validated against ESPressio Event 5.8.3.
 
 ## Header Structure
 
@@ -140,7 +144,7 @@ Core umbrella:
 #include <ESPressio_ESPNow.hpp>
 ```
 
-The umbrella contains the core transport and clock synchronizer but deliberately does not include dependency-bearing optional adapters.
+The umbrella contains the core transport, peer-liveness tracker, and clock synchronizer but deliberately does not include dependency-bearing optional adapters.
 
 Optional integrations:
 
@@ -160,6 +164,8 @@ transport.Initialize();
 ```
 
 Incoming Wi-Fi callback data is copied into a bounded FreeRTOS queue. Protocol validation and application handlers execute later on the ESPressio receive task, avoiding long work in the Wi-Fi callback.
+
+Every successfully validated inbound ESPressio frame is also surfaced to transport observers. This is deliberately separate from protocol delivery: observers can use frame arrival as operational evidence, while the registered protocol handler remains responsible for consuming the payload.
 
 ### Configuration
 
@@ -187,6 +193,24 @@ transport.AddPeer(peer);
 `peer.Encrypt` controls native ESP-NOW link encryption and remains independent of ESPressio Security application/transport-layer protection.
 
 Successful peer additions/removals and failed peer-management operations are available through the transport observer contract.
+
+### Peer liveness
+
+`ESPNowPeerLivenessTracker` provides transport-independent liveness classification for known ESP-NOW peers:
+
+```text
+Alive
+    recent discovery or validated ESPressio traffic
+
+Suspect
+    expected discovery evidence has been missed, but the peer is not yet
+    considered genuinely unavailable
+
+Expired
+    the configured hard-expiry interval has elapsed without valid evidence
+```
+
+Discovery advertisements are therefore one liveness signal rather than the sole signal. Higher-level peer managers can avoid removing a destination during short radio/broadcast disturbances and only perform destructive teardown once the peer is genuinely expired.
 
 ## ESPressio ESP-NOW Wire Format
 
@@ -242,7 +266,7 @@ Call `sync.Update()` regularly for Client modes.
 
 The Event integration remains distinct from Command and Security semantics.
 
-For 0.5.x compatibility, `ESPNowTransportEventBridge` remains supplied by ESPressio Event 5.8. The dependency audit for issue #10 identifies this reciprocal optional relationship as architectural debt: because ESP-Now already consumes Event for `ESPNowEventTransport`, the bridge should ultimately move downstream into this Event integration rather than requiring Event to consume ESP-Now.
+For 0.5.3, Event integration is compiled in CI against ESPressio Event 5.8.3 and its coordinated dependency generation. `ESPNowTransportEventBridge` remains supplied by ESPressio Event 5.8.x for compatibility. The dependency audit identifies this reciprocal optional relationship as architectural debt: because ESP-Now already consumes Event for `ESPNowEventTransport`, the bridge should ultimately move downstream into this Event integration rather than requiring Event to consume ESP-Now.
 
 ## Command Transport
 
@@ -350,25 +374,29 @@ Example keys/MAC addresses are placeholders and must not be treated as productio
 
 ## Testing
 
-The permanent host suite protects both existing and new contracts:
+The permanent host suite protects the core and integration contracts, including peer-liveness behavior:
 
 ```text
 ESPNowCoreTypes
+ESPNowPeerLivenessTracker
 ESPNowCommandTransport
 ESPNowSecurityProtocol
 ```
 
-Security-protocol tests cover protocol allocation, fragmentation, out-of-order reassembly, duplicate fragments, malformed frames, and maximum envelope bounds.
+Peer-liveness regression coverage includes missed discovery windows, transition through `Suspect`, refresh from valid protocol traffic, genuine hard expiry, and rediscovery. Security-protocol tests cover protocol allocation, fragmentation, out-of-order reassembly, duplicate fragments, malformed frames, and maximum envelope bounds.
 
-The 0.5.2 candidate validates the native transport observer contract and the refreshed Timing/Units/Observable dependency generation. GitHub Actions also compile real ESP32 examples against the coordinated dependencies.
+The 0.5.3 candidate is also validated by a permanent ESP32 Event integration build against Event 5.8.3, Threads 3.1.4, Timing 2.2.4, Units 0.2.3, Observable 3.0.1, and Serializable 0.10.2.
+
+Hardware validation for the #15 fix transmitted Event messages 2–22 from one device to the other with all 21 arriving in order and no gaps; the reverse startup Event also arrived, and neither device reported peer expiry/removal during the test.
 
 ## Compatibility
 
-0.5.2 is a backward-compatible dependency-maintenance patch:
+0.5.3 is a backward-compatible reliability patch:
 
-- core `ESPNowTransport` APIs are unchanged from 0.5.0;
+- core `ESPNowTransport` send/peer-management APIs remain compatible with 0.5.2;
+- `IESPNowTransportObserver` gains validated-frame observation for operational integrations;
 - clock synchronization APIs are unchanged;
-- Event Transport APIs are unchanged;
+- Event Transport APIs remain compatible and are validated against Event 5.8.3;
 - Command Transport APIs are unchanged;
 - Security integration remains opt-in;
 - Observable remains the required lifecycle-observation dependency introduced by 0.5.0;
@@ -376,7 +404,7 @@ The 0.5.2 candidate validates the native transport observer contract and the ref
 
 ## Contributing
 
-Issues and contributions are welcome through the GitHub repository. Changes to transport framing, synchronization, Command/Event integrations, or Security integration should include corresponding regression coverage.
+Issues and contributions are welcome through the GitHub repository. Changes to transport framing, synchronization, peer liveness, Command/Event integrations, or Security integration should include corresponding regression coverage.
 
 ## Changelog
 
