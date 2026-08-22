@@ -9,7 +9,7 @@
 #include <vector>
 
 #if !__has_include(<ESPressio_Command.hpp>)
-#error "ESP-NOW Command integration requires ESPressio Command >= 0.2.0 < 1.0.0."
+#error "ESP-NOW Command integration requires ESPressio Command >= 1.0.0 < 2.0.0."
 #endif
 
 #include <ESPressio_Command.hpp>
@@ -66,13 +66,13 @@ public:
 
         AppendU16(output, request.Invocation.positional.size());
         for (const auto& value : request.Invocation.positional) {
-            if (!AppendString(output, value)) return false;
+            if (!AppendCommandValue(output, value)) return false;
         }
 
         AppendU16(output, request.Invocation.named.size());
         for (const auto& item : request.Invocation.named) {
             if (!AppendString(output, item.first)) return false;
-            if (!AppendString(output, item.second)) return false;
+            if (!AppendCommandValue(output, item.second)) return false;
         }
 
         return AppendString(output, request.Invocation.raw);
@@ -104,7 +104,7 @@ public:
         for (uint16_t i = 0; i < count; ++i) {
             std::string value;
             if (!reader.ReadString(value)) return false;
-            result.Invocation.positional.push_back(std::move(value));
+            result.Invocation.positional.emplace_back(std::move(value));
         }
 
         if (!reader.ReadU16(count)) return false;
@@ -112,7 +112,10 @@ public:
             std::string key;
             std::string value;
             if (!reader.ReadString(key) || !reader.ReadString(value)) return false;
-            result.Invocation.named.emplace(std::move(key), std::move(value));
+            result.Invocation.named.emplace(
+                std::move(key),
+                Command::CommandValue(std::move(value))
+            );
         }
 
         if (!reader.ReadString(result.Invocation.raw)) return false;
@@ -222,6 +225,14 @@ private:
         AppendU16(out, value.size());
         out.insert(out.end(), value.begin(), value.end());
         return true;
+    }
+
+    static bool AppendCommandValue(
+        std::vector<uint8_t>& out,
+        const Command::CommandValue& value
+    ) {
+        if (value.IsNull()) return false;
+        return AppendString(out, value.ToString());
     }
 
     static void AppendU16(std::vector<uint8_t>& out, std::size_t value) {
