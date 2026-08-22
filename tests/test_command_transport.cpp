@@ -41,21 +41,23 @@ void Deliver(
 Command::CommandInvocation AddInvocation(int a, int b) {
     Command::CommandInvocation invocation;
     invocation.path = {"math", "add"};
-    invocation.positional = {std::to_string(a), std::to_string(b)};
+    invocation.positional = {a, b};
     return invocation;
 }
 
 } // namespace
 
 int main() {
-    // Protocol encode/decode round trip.
+    // Protocol encode/decode round trip. Protocol v1 remains string-based at
+    // the wire boundary, so native CommandValues are normalized on encode and
+    // decoded into string-backed CommandValues.
     {
         ESPNow::ESPNowCommandProtocol::Request request;
         request.RequestID = 42;
         request.Invocation.path = {"gpio", "write"};
-        request.Invocation.positional = {"2", "high"};
+        request.Invocation.positional = {2, true, 0.5};
         request.Invocation.named["reason"] = "test";
-        request.Invocation.raw = "gpio write 2 high --reason test";
+        request.Invocation.raw = "gpio write 2 true 0.5 --reason test";
 
         std::vector<uint8_t> encoded;
         assert(ESPNow::ESPNowCommandProtocol::EncodeRequest(request, encoded));
@@ -64,9 +66,18 @@ int main() {
         assert(ESPNow::ESPNowCommandProtocol::DecodeRequest(42, encoded.data(), encoded.size(), decoded));
         assert(decoded.RequestID == 42);
         assert(decoded.Invocation.path == request.Invocation.path);
-        assert(decoded.Invocation.positional == request.Invocation.positional);
-        assert(decoded.Invocation.named == request.Invocation.named);
+        assert(decoded.Invocation.positional.size() == 3);
+        assert(decoded.Invocation.positional[0].ToString() == "2");
+        assert(decoded.Invocation.positional[1].ToString() == "true");
+        assert(decoded.Invocation.positional[2].As<double>() == 0.5);
+        assert(decoded.Invocation.positional[0].GetType() == Command::CommandValue::Type::String);
+        assert(decoded.Invocation.positional[1].GetType() == Command::CommandValue::Type::String);
+        assert(decoded.Invocation.named.at("reason").ToString() == "test");
         assert(decoded.Invocation.raw == request.Invocation.raw);
+
+        request.Invocation.positional = {Command::CommandValue(nullptr)};
+        encoded.clear();
+        assert(!ESPNow::ESPNowCommandProtocol::EncodeRequest(request, encoded));
 
         ESPNow::ESPNowCommandProtocol::Response response;
         response.RequestID = 42;
@@ -109,7 +120,7 @@ int main() {
     std::vector<Frame> bToA;
 
     ESPNow::ESPNowCommandEndpointConfig config;
-    config.MaximumProtocolPayloadBytes = 40; // force fragmentation in tests
+    config.MaximumProtocolPayloadBytes = 40;
     config.MaximumMessageBytes = 2048;
     config.MaximumOutstandingRequests = 2;
     config.MaximumReassemblies = 4;
@@ -139,7 +150,6 @@ int main() {
         }
     ));
 
-    // Fragmented request, deliberately delivered out of order.
     bool completed = false;
     Command::CommandResult completionResult;
     uint64_t firstRequestID = 0;
@@ -167,14 +177,12 @@ int main() {
     assert(completionResult.message == "16");
     assert(endpointA.GetOutstandingRequestCount() == 0);
 
-    // Duplicate request replay must not execute a side effect twice.
     aToB = originalRequestFrames;
     Deliver(aToB, endpointB, peerA, 13);
     assert(executions == 1);
     assert(!bToA.empty());
     bToA.clear();
 
-    // Metadata, policy rejection and result observation.
     bool policySeen = false;
     bool observerSeen = false;
     endpointB.SetPolicy([&](const ESPNow::ESPNowCommandInvocationContext& context) {
@@ -203,17 +211,15 @@ int main() {
     assert(observerSeen);
     assert(denied);
 
-    // Timeout behavior.
     bool timedOut = false;
     assert(endpointA.Invoke(peerB, AddInvocation(1, 2), [&](const Command::CommandResult& result) {
         timedOut = !result.success && result.code == 4;
     }, 100));
-    aToB.clear(); // simulate lost radio packets
+    aToB.clear();
     endpointA.Update(201);
     assert(timedOut);
     assert(endpointA.GetOutstandingRequestCount() == 0);
 
-    // Maximum outstanding requests is bounded.
     config.MaximumOutstandingRequests = 1;
     ESPNow::ESPNowCommandEndpoint bounded;
     std::vector<Frame> boundedFrames;
@@ -226,7 +232,6 @@ int main() {
     bounded.Update(101);
     assert(bounded.GetOutstandingRequestCount() == 0);
 
-    // Long structured value spans many fragments and preserves content.
     std::string longValue(600, 'x');
     Command::CommandInvocation longEcho;
     longEcho.path = {"echo"};
@@ -240,7 +245,6 @@ int main() {
     Deliver(bToA, endpointA, peerB, 302, true);
     assert(echoCompleted);
 
-    // Reassembly is isolated by peer even when request IDs match.
     ESPNow::ESPNowCommandProtocol::Request manual;
     manual.RequestID = 777;
     manual.Invocation = AddInvocation(3, 4);
@@ -262,19 +266,16 @@ int main() {
     assert(executions == beforePeerIsolation + 2);
     bToA.clear();
 
-    // Missing fragments expire without execution.
     auto incomplete = manualFrames;
     assert(endpointB.Receive(peerA, incomplete.front().data(), incomplete.front().size(), 500));
     assert(endpointB.GetReassemblyCount() == 1);
     endpointB.Update(601);
     assert(endpointB.GetReassemblyCount() == 0);
 
-    // Duplicate fragments with identical payload are accepted.
     assert(endpointB.Receive(peerA, manualFrames.front().data(), manualFrames.front().size(), 700));
     assert(endpointB.Receive(peerA, manualFrames.front().data(), manualFrames.front().size(), 701));
     endpointB.Update(802);
 
-    // Malformed magic/version/header are rejected.
     auto malformed = manualFrames.front();
     malformed[0] ^= 0xFFu;
     assert(!endpointB.Receive(peerA, malformed.data(), malformed.size(), 900));
@@ -283,7 +284,6 @@ int main() {
     malformed[4] = 99;
     assert(!endpointB.Receive(peerA, malformed.data(), malformed.size(), 900));
 
-    // Oversized declared total length is rejected.
     malformed = manualFrames.front();
     ESPNow::ESPNowCommandProtocol::FragmentHeader header;
     const uint8_t* ignored = nullptr;
@@ -292,7 +292,6 @@ int main() {
     std::memcpy(malformed.data(), &header, sizeof(header));
     assert(!endpointB.Receive(peerA, malformed.data(), malformed.size(), 900));
 
-    // Shutdown deterministically completes pending work with an error.
     bool shutdownCompletion = false;
     assert(endpointA.Invoke(peerB, AddInvocation(5, 6), [&](const Command::CommandResult& result) {
         shutdownCompletion = !result.success && result.code == 3;
