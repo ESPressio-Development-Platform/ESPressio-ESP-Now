@@ -2,9 +2,9 @@
 
 ESP-NOW transport and distributed ESPressio implementations for the Flowduino ESPressio Development Platform.
 
-## Current Version — 0.7.0
+## Current Version — 0.8.0
 
-ESPressio ESP-Now **0.7.0** adds compatibility with ESPressio Command 1.0.0's typed `CommandInvocation` values while preserving the existing ESP-Now Command protocol-v1 wire representation. ESP-Now continues to own its concrete Event Transport, ESP-Now lifecycle Event types, and `ESPNowTransportEventBridge`; ESPressio Event 6.0.0 remains responsible only for the generic Event mechanism and does not depend back on ESP-Now.
+ESPressio ESP-Now **0.8.0** hardens the shared receive task for integrated protocol workloads. The default receive-task stack is increased from 4096 to 8192 bytes, and `ESPNowTransport` now exposes `GetReceiveTaskMinimumFreeStackBytes()` so hardware tests and applications can inspect observed receive-task stack headroom. Existing transport configuration remains source-compatible, and ESP-NOW wire framing and protocol identifiers are unchanged.
 
 The public Event integration header and class names remain:
 
@@ -66,7 +66,7 @@ Core transport/Timing use:
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-ESP-Now@^0.6.0
+    flowduino/ESPressio-ESP-Now@^0.8.0
     flowduino/ESPressio-Timing@^2.2.4
     flowduino/ESPressio-Observable@^3.0.1
 
@@ -112,6 +112,23 @@ transport.Initialize();
 
 Incoming Wi-Fi callback data is copied into a bounded FreeRTOS queue. Protocol validation and application handlers run later on the ESPressio receive task, avoiding expensive application work inside the Wi-Fi callback.
 
+The default receive-task stack is **8192 bytes** in 0.8.0. Applications with unusual protocol-handler depth may still override it explicitly:
+
+```cpp
+ESPressio::ESPNow::ESPNowTransportConfig config;
+config.ReceiveTaskStackSize = 12288;
+transport.Initialize(config);
+```
+
+The receive task executes registered protocol handlers synchronously, so integrated Command, Event, Security, Observable and diagnostic work contributes to the task's stack requirement. Applications and hardware stress tests can inspect the minimum unused receive-task stack observed since initialization:
+
+```cpp
+const uint32_t minimumFreeBytes =
+    transport.GetReceiveTaskMinimumFreeStackBytes();
+```
+
+The diagnostic returns `0` when the receive task is unavailable, including before initialization and after shutdown.
+
 Every successfully validated inbound ESPressio frame is also surfaced to transport observers. This is deliberately separate from protocol delivery: observers can use frame arrival as operational/liveness evidence while the registered protocol handler remains authoritative for consuming the payload.
 
 ## Command 1.x compatibility
@@ -135,7 +152,7 @@ Event 6.0.0
     |
     | optional
     |
-ESP-Now 0.7.0
+ESP-Now 0.8.0
     +-- ESPNowEventTransport
     +-- ESPNow lifecycle Event types
     +-- ESPNowTransportEventBridge
@@ -156,7 +173,7 @@ transport.AddPeer(peer);
 
 `peer.Encrypt` controls native ESP-NOW link encryption and is independent of ESPressio Security application/transport-layer protection.
 
-0.7.0 does not change ESP-NOW radio framing, Event transport semantics, clock synchronization, peer-liveness behavior, Security transport semantics, or the ESP-Now Command protocol-v1 wire layout. The Command integration now targets Command 1.x and adapts its typed structured value model at the existing protocol boundary.
+0.8.0 does not change ESP-NOW radio framing, Event transport semantics, clock synchronization, peer-liveness behavior, Security transport semantics, or the ESP-Now Command protocol-v1 wire layout. Existing callers remain source-compatible; the new stack diagnostic is additive.
 
 `ESPNowPeerLivenessTracker` classifies known peers as:
 
@@ -184,13 +201,13 @@ Command       1.0.0
 Security      0.3.0
 Event         6.0.0
 Sockets       0.7.0
-ESP-Now       0.7.0
-Serial        0.7.0
+ESP-Now       0.8.0
+Serial        0.7.1
 ```
 
 ## Dependency documentation
 
-See **[ESPressio Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.md)** for the complete 0.7.0 dependency direction and coordinated release generation.
+See **[ESPressio Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.md)** for the complete 0.8.0 ESP-Now dependency direction and coordinated release generation. Downstream ESP-Now version baselines are updated separately as part of the release cascade.
 
 Higher-level peer managers should use `Suspect` as a warning state and reserve destructive removal for `Expired`.
 
@@ -418,11 +435,13 @@ The permanent host/ESP32 validation covers core types, peer liveness, Command tr
 
 Peer-liveness regression coverage includes missed discovery windows, transition through `Suspect`, refresh from valid protocol traffic, genuine hard expiry and rediscovery.
 
+Hardware stress testing should monitor `GetReceiveTaskMinimumFreeStackBytes()` while exercising integrated protocol workloads. The 8192-byte default addresses the stack-canary failure reproduced in EventConsole-Lab; applications with deeper custom protocol handlers can increase `ReceiveTaskStackSize` explicitly.
+
 # Compatibility
 
-0.6.0 changes **ownership**, not the underlying ESP-Now transport protocol semantics. Core transport, synchronization, wire framing, protocol IDs, peer-liveness APIs, Command transport and Security transport semantics remain compatible with the completed 0.5.x generation.
+0.8.0 is source-compatible with 0.7.x. It extends the public transport interface with receive-task stack diagnostics and increases the default receive-task stack allocation; wire framing, protocol IDs and peer interoperability are unchanged.
 
-Applications using ESP-Now-specific Event headers now obtain them from ESPressio ESP-Now 0.6.0 rather than ESPressio Event.
+Applications using ESP-Now-specific Event headers continue to obtain them from ESPressio ESP-Now rather than ESPressio Event.
 
 # Changelog
 

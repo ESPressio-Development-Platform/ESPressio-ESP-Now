@@ -30,6 +30,7 @@ int main() {
     ESPNow::ESPNowTransportConfig transport;
     assert(transport.InitializeWiFi);
     assert(transport.Channel == 0);
+    assert(transport.ReceiveTaskStackSize == 8192);
     assert(transport.ReceiveQueueLength == 12);
 
     ESPNow::ESPNowClockSynchronizationConfig clock;

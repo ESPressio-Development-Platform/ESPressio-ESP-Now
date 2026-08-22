@@ -278,6 +278,18 @@ public:
 
     bool GetIsInitialized() const { return _initialized; }
 
+    /*
+     * Return the smallest amount of unused receive-task stack observed since
+     * the task was created. ESP-IDF's FreeRTOS port reports the high-water mark
+     * in bytes. A zero value means the receive task is not currently available
+     * (for example before Initialize() or after Shutdown()).
+     */
+    uint32_t GetReceiveTaskMinimumFreeStackBytes() const {
+        TaskHandle_t task = _receiveTask;
+        if (task == nullptr) return 0;
+        return static_cast<uint32_t>(uxTaskGetStackHighWaterMark(task));
+    }
+
     bool RegisterProtocolHandler(uint8_t protocol, ProtocolHandler handler) {
         if (!handler) return false;
         std::lock_guard<std::mutex> lock(_handlerMutex);

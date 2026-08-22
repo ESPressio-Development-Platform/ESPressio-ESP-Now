@@ -103,7 +103,7 @@ namespace ESPressio {
         struct ESPNowTransportConfig {
             bool InitializeWiFi = true;
             uint8_t Channel = 0;
-            uint32_t ReceiveTaskStackSize = 4096;
+            uint32_t ReceiveTaskStackSize = 8192;
             UBaseType_t ReceiveTaskPriority = 2;
             BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
             std::size_t ReceiveQueueLength = 12;
