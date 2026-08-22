@@ -1,6 +1,6 @@
 # ESPressio ESP-Now
 
-ESP-NOW transport and distributed ESPressio implementations for the Flowduino ESPressio Development Platform.
+ESP-NOW transport and distributed ESPressio implementations for the ESPressio Development Platform.
 
 ## Current Version — 0.8.0
 
@@ -66,9 +66,9 @@ Core transport/Timing use:
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-ESP-Now@^0.8.0
-    flowduino/ESPressio-Timing@^2.2.4
-    flowduino/ESPressio-Observable@^3.0.1
+    espressio-development-platform/ESPressio-ESP-Now@^0.8.0
+    espressio-development-platform/ESPressio-Timing@^2.2.4
+    espressio-development-platform/ESPressio-Observable@^3.0.1
 
 build_flags =
     -std=gnu++17
@@ -202,7 +202,7 @@ Security      0.3.0
 Event         6.0.0
 Sockets       0.7.0
 ESP-Now       0.8.0
-Serial        0.7.1
+Serial        0.7.2
 ```
 
 ## Dependency documentation

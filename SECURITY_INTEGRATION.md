@@ -14,8 +14,8 @@ PlatformIO example:
 
 ```ini
 lib_deps =
-    https://github.com/Flowduino/ESPressio-ESP-Now@^0.4.0
-    https://github.com/Flowduino/ESPressio-Security@^0.1.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.4.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-Security@^0.1.0
 ```
 
 ## Placement

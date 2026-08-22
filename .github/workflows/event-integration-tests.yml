@@ -25,32 +25,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Event
+          repository: ESPressio-Development-Platform/ESPressio-Event
           ref: 6.0.0
           path: deps/ESPressio-Event
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Threads
+          repository: ESPressio-Development-Platform/ESPressio-Threads
           ref: 3.1.4
           path: deps/ESPressio-Threads
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Timing
+          repository: ESPressio-Development-Platform/ESPressio-Timing
           ref: 2.2.4
           path: deps/ESPressio-Timing
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Units
+          repository: ESPressio-Development-Platform/ESPressio-Units
           ref: 0.2.3
           path: deps/ESPressio-Units
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Observable
+          repository: ESPressio-Development-Platform/ESPressio-Observable
           ref: 3.0.1
           path: deps/ESPressio-Observable
       - uses: actions/checkout@v4
         with:
-          repository: Flowduino/ESPressio-Serializable
+          repository: ESPressio-Development-Platform/ESPressio-Serializable
           ref: 0.10.2
           path: deps/ESPressio-Serializable
       - name: Install PlatformIO

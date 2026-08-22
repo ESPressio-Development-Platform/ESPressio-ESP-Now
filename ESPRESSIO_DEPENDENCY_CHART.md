@@ -20,7 +20,7 @@ Command       1.0.0
 Security      0.3.0
 Sockets       0.7.0
 ESP-Now       0.8.0
-Serial        0.7.1
+Serial        0.7.2
 ```
 
 ## Required dependencies
@@ -61,7 +61,7 @@ ESP-Now 0.8.0
     -> Timing >= 2.2.4 < 3.0.0
     -> Observable >= 3.0.1 < 4.0.0
 
-Serial 0.7.1
+Serial 0.7.2
     -> none in the core package
 ```
 
@@ -99,7 +99,7 @@ Serial
     - - -> Command >= 1.0.0 < 2.0.0
     - - -> Security >= 0.3.0 < 1.0.0
     - - -> Sockets >= 0.7.0 < 1.0.0
-    - - -> ESP-Now >= 0.7.0 < 1.0.0
+    - - -> ESP-Now >= 0.8.0 < 1.0.0
     - - -> Event >= 6.0.0 < 7.0.0
     - - -> Serializable >= 0.10.2 < 1.0.0
     - - -> Timing >= 2.2.4 < 3.0.0
