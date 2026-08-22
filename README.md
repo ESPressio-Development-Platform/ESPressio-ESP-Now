@@ -2,42 +2,11 @@
 
 ESP-NOW transport and distributed ESPressio implementations for the Flowduino ESPressio Development Platform.
 
-ESPressio ESP-Now provides a reusable ESP-NOW transport foundation for ESP32-family applications, distributed System Clock synchronization, optional Event and Command transports, optional lifecycle-to-Event bridges, and optional authenticated payload protection through ESPressio Security.
+## Current Version — 0.7.0
 
-## Current Version — 0.6.0
+ESPressio ESP-Now **0.7.0** adds compatibility with ESPressio Command 1.0.0's typed `CommandInvocation` values while preserving the existing ESP-Now Command protocol-v1 wire representation. ESP-Now continues to own its concrete Event Transport, ESP-Now lifecycle Event types, and `ESPNowTransportEventBridge`; ESPressio Event 6.0.0 remains responsible only for the generic Event mechanism and does not depend back on ESP-Now.
 
-ESPressio ESP-Now 0.6.0 preserves the mature 0.5.x transport, synchronization, Command, Security and peer-liveness functionality while correcting ownership of ESP-Now-specific Event integration. ESP-Now now owns its concrete Event Transport, ESP-Now lifecycle Event types and `ESPNowTransportEventBridge`.
-
-## Why ESPressio ESP-Now?
-
-Espressif's ESP-NOW API is low-level and callback-oriented. ESPressio ESP-Now adds reusable framing, protocol allocation, peer abstractions, receive-task isolation, lifecycle observation, distributed Timing integration and optional higher-level protocol adapters.
-
-```text
-Event / Command / Clock Sync / application payload
-                     |
-                     v
-              ESPNowTransport
-                     |
-                     v
-                  ESP-NOW
-                     |
-                     v
-                 Wi-Fi radio
-```
-
-Application code can therefore operate in terms of the ESPressio protocol it actually cares about instead of repeatedly rebuilding callback, peer, queue and framing infrastructure.
-
-## ESPressio Development Platform
-
-ESPressio libraries are discrete, composable components built around a common design ethos: light-weight implementation, strongly typed ease of use, object-oriented APIs and explicit SOLID dependency boundaries.
-
-ESP-Now owns ESP-NOW-specific peer/radio/framing concerns. Timing owns clock discipline, Event owns generic Event semantics, Command owns Command semantics, and Security owns cryptography/authentication/replay protection.
-
-## License
-
-Apache License 2.0. See [LICENSE](LICENSE).
-
-## Namespace
+The public Event integration header and class names remain:
 
 ```cpp
 ESPressio::ESPNow
@@ -80,8 +49,8 @@ Optional:
 Event integration
     ESPressio Event >= 6.0.0 < 7.0.0
 
-Command integration
-    ESPressio Command >= 0.4.0 < 1.0.0
+Optional Command integration
+    ESPressio Command >= 1.0.0 < 2.0.0
 
 Secure Transport
     ESPressio Security >= 0.3.0 < 1.0.0
@@ -145,22 +114,34 @@ Incoming Wi-Fi callback data is copied into a bounded FreeRTOS queue. Protocol v
 
 Every successfully validated inbound ESPressio frame is also surfaced to transport observers. This is deliberately separate from protocol delivery: observers can use frame arrival as operational/liveness evidence while the registered protocol handler remains authoritative for consuming the payload.
 
-## Configuration
+## Command 1.x compatibility
 
-`ESPNowTransportConfig` exposes the principal transport/runtime settings:
+Command 1.0.0 allows structured invocations to retain native scalar `CommandValue` types. The existing ESP-Now Command protocol remains **version 1** and intentionally preserves its historical string-valued wire representation:
 
 ```text
-InitializeWiFi
-Channel
-ReceiveTaskStackSize
-ReceiveTaskPriority
-ReceiveTaskCore
-ReceiveQueueLength
+CommandValue -> ToString() -> ESP-Now Command protocol-v1 string
+protocol-v1 string -> string-backed CommandValue
 ```
 
-This makes receive-task resources explicit instead of hiding them in the transport implementation.
+This means typed invocations such as integer and boolean values can be submitted through the ESP-Now Command API without breaking existing protocol-v1 peers. The receiving Command Registry remains responsible for typed parameter conversion and validation. Native scalar type identity is not carried across protocol v1, and null values are rejected because protocol v1 has no null representation.
 
-# Peer management
+## Event integration ownership
+
+The dependency direction remains:
+
+```text
+Event 6.0.0
+    ^
+    |
+    | optional
+    |
+ESP-Now 0.7.0
+    +-- ESPNowEventTransport
+    +-- ESPNow lifecycle Event types
+    +-- ESPNowTransportEventBridge
+```
+
+`ESPNowTransportEventBridge` observes `ESPNowTransport` lifecycle notifications and publishes their Event representations. Because those concepts belong to ESP-Now, the bridge and Event types are owned by ESP-Now.
 
 Add a peer using `ESPNowPeerConfig`:
 
@@ -175,9 +156,7 @@ transport.AddPeer(peer);
 
 `peer.Encrypt` controls native ESP-NOW link encryption and is independent of ESPressio Security application/transport-layer protection.
 
-Transport observers expose peer-add/remove and relevant failure lifecycle information for diagnostics.
-
-# Peer-liveness reliability
+0.7.0 does not change ESP-NOW radio framing, Event transport semantics, clock synchronization, peer-liveness behavior, Security transport semantics, or the ESP-Now Command protocol-v1 wire layout. The Command integration now targets Command 1.x and adapts its typed structured value model at the existing protocol boundary.
 
 `ESPNowPeerLivenessTracker` classifies known peers as:
 
@@ -193,9 +172,25 @@ Expired
     the hard-expiry interval elapsed without valid evidence
 ```
 
-Discovery advertisements are only **one** liveness signal. Any validated ESPressio ESP-NOW frame is positive evidence that the peer is alive.
+## Final coordinated generation
 
-This distinction prevents transient broadcast/discovery loss from immediately tearing down an otherwise healthy Event destination or synchronization peer.
+```text
+Observable    3.0.1
+Serializable  0.10.2
+Units         0.2.3
+Timing        2.2.4
+Threads       3.1.4
+Command       1.0.0
+Security      0.3.0
+Event         6.0.0
+Sockets       0.7.0
+ESP-Now       0.7.0
+Serial        0.7.0
+```
+
+## Dependency documentation
+
+See **[ESPressio Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.md)** for the complete 0.7.0 dependency direction and coordinated release generation.
 
 Higher-level peer managers should use `Suspect` as a warning state and reserve destructive removal for `Expired`.
 

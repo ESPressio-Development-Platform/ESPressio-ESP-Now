@@ -8,15 +8,13 @@
         "url": "https://flowduino.com"
     },
     "build": {
-        "flags": [
-            "-DESPRESSIO_ESPNOW"
-        ]
+        "flags": ["-DESPRESSIO_ESPNOW"]
     },
     "repository": {
         "type": "git",
         "url": "https://github.com/Flowduino/ESPressio-ESP-Now.git"
     },
-    "version": "0.6.0",
+    "version": "0.7.0",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "espressif32",

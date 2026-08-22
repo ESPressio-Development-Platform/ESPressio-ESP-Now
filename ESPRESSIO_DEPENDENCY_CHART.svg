@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620">
   <style>text{font-family:sans-serif;fill:#111}.title{font-size:28px;font-weight:700}.node{fill:#fff;stroke:#222;stroke-width:2;rx:8}.label{font-size:16px;font-weight:600;text-anchor:middle;dominant-baseline:middle}.edge{stroke:#333;stroke-width:2;fill:none;marker-end:url(#a)}.optional{stroke-dasharray:7 6}.note{font-size:14px}</style>
   <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#333"/></marker></defs>
-  <text x="40" y="45" class="title">ESPressio Dependency Chart — ESP-Now 0.6.0</text>
-  <rect class="node" x="390" y="90" width="220" height="65"/><text class="label" x="500" y="123">ESP-Now 0.6.0</text>
+  <text x="40" y="45" class="title">ESPressio Dependency Chart — ESP-Now 0.7.0</text>
+  <rect class="node" x="390" y="90" width="220" height="65"/><text class="label" x="500" y="123">ESP-Now 0.7.0</text>
   <rect class="node" x="80" y="245" width="190" height="60"/><text class="label" x="175" y="275">Timing 2.2.4</text>
   <rect class="node" x="300" y="245" width="190" height="60"/><text class="label" x="395" y="275">Observable 3.0.1</text>
   <rect class="node" x="520" y="245" width="180" height="60"/><text class="label" x="610" y="275">Event 6.0.0</text>
-  <rect class="node" x="730" y="220" width="190" height="60"/><text class="label" x="825" y="250">Command 0.4.0</text>
+  <rect class="node" x="730" y="220" width="190" height="60"/><text class="label" x="825" y="250">Command 1.0.0</text>
   <rect class="node" x="730" y="315" width="190" height="60"/><text class="label" x="825" y="345">Security 0.3.0</text>
   <path class="edge" d="M440 155 L210 245"/><path class="edge" d="M475 155 L410 245"/>
   <path class="edge optional" d="M525 155 L595 245"/><path class="edge optional" d="M570 150 L780 220"/><path class="edge optional" d="M590 145 L790 315"/>
   <text x="520" y="335" class="note">Event integration owned here:</text><text x="520" y="360" class="note">ESPNowEventTransport</text><text x="520" y="382" class="note">ESPNowEvents</text><text x="520" y="404" class="note">ESPNowTransportEventBridge</text>
   <text x="40" y="500" class="note">Solid arrows: required dependencies. Dashed arrows: opt-in integration dependencies.</text>
-  <text x="40" y="530" class="note">Event 6.0.0 has no reverse dependency on ESP-Now.</text>
-  <text x="40" y="560" class="note">Final generation: Command 0.4.0 · Security 0.3.0 · Sockets 0.6.0 · ESP-Now 0.6.0 · Event 6.0.0 · Serial 0.6.0</text>
+  <text x="40" y="530" class="note">Command integration targets 1.0.0; Event 6.0.0 has no reverse dependency on ESP-Now.</text>
+  <text x="40" y="560" class="note">Final generation: Command 1.0.0 · Security 0.3.0 · Sockets 0.7.0 · ESP-Now 0.7.0 · Event 6.0.0 · Serial 0.7.0</text>
 </svg>

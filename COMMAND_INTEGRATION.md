@@ -1,6 +1,6 @@
 # ESPressio Command over ESP-NOW
 
-ESPressio ESP-Now 0.3.0 adds an optional transport for invoking **ESPressio Command** operations between ESP32 peers over ESP-NOW.
+ESPressio ESP-Now 0.7.0 provides an optional transport for invoking **ESPressio Command >= 1.0.0 < 2.0.0** operations between ESP32 peers over ESP-NOW.
 
 The integration is intentionally separate from ESPressio Event Transport:
 
@@ -16,9 +16,10 @@ Commands are therefore transported directly as `CommandInvocation` requests and 
 The integration requires:
 
 ```text
-ESPressio ESP-Now >= 0.3.0 < 1.0.0
-ESPressio Command >= 0.2.0 < 1.0.0
-ESPressio Timing >= 2.2.2 < 3.0.0
+ESPressio ESP-Now >= 0.7.0 < 1.0.0
+ESPressio Command >= 1.0.0 < 2.0.0
+ESPressio Timing >= 2.2.4 < 3.0.0
+ESPressio Observable >= 3.0.1 < 4.0.0
 Arduino-ESP32
 ```
 
@@ -78,7 +79,7 @@ CommandResult
 
 ## Protocol identifier
 
-0.3.0 reserves:
+The Command transport uses:
 
 ```cpp
 ESPNowProtocol::CommandTransport
@@ -174,10 +175,12 @@ commandTransport.Initialize(
 
 Commands are asynchronous because ESP-NOW transport itself is asynchronous.
 
+Command 1.0.0 structured values can be supplied natively:
+
 ```cpp
 Command::CommandInvocation invocation;
 invocation.path = {"gpio", "write"};
-invocation.positional = {"2", "high"};
+invocation.positional = {2, true};
 
 commandTransport.Invoke(
     ESPNow::MacAddress(RemoteMac),
@@ -194,6 +197,12 @@ commandTransport.Invoke(
         }
     }
 );
+```
+
+String-backed values remain valid too:
+
+```cpp
+invocation.positional = {"2", "high"};
 ```
 
 Call:
@@ -224,6 +233,26 @@ result message
 ```
 
 Every request/result pair carries the same 64-bit request ID.
+
+### Command 1.0.0 typed values and protocol-v1 compatibility
+
+The ESP-Now Command wire protocol intentionally remains **version 1**. Protocol v1 was defined with string-valued positional and named parameters, so ESP-Now 0.7.0 preserves that wire representation rather than forcing an incompatible protocol revision.
+
+When encoding a Command 1.x invocation:
+
+```text
+CommandValue -> CommandValue::ToString() -> protocol-v1 string
+```
+
+When decoding:
+
+```text
+protocol-v1 string -> string-backed CommandValue
+```
+
+The receiving `CommandRegistry` remains authoritative for converting and validating those values against the registered parameter definitions. Native scalar type identity is therefore not carried across protocol v1, but existing peers remain interoperable and existing Command validation semantics are retained.
+
+A null `CommandValue` has no representation in protocol v1 and is rejected rather than silently converted.
 
 ## Fragmentation
 
@@ -372,8 +401,8 @@ Command handles intent; Event handles asynchronous observation of the resulting 
 
 ```ini
 lib_deps =
-    https://github.com/flowduino/ESPressio-ESP-Now@^0.3.0
-    https://github.com/flowduino/ESPressio-Command@^0.2.0
+    https://github.com/flowduino/ESPressio-ESP-Now@^0.7.0
+    https://github.com/flowduino/ESPressio-Command@^1.0.0
 ```
 
 Timing remains the required ESP-Now foundation and is declared by ESPressio ESP-Now itself.
@@ -383,6 +412,8 @@ Timing remains the required ESP-Now foundation and is declared by ESPressio ESP-
 The host test suite validates the radio-independent Command protocol/endpoint behavior, including:
 
 - request/result serialization;
+- Command 1.x typed-value normalization at the protocol-v1 boundary;
+- null-value rejection;
 - correlation IDs;
 - fragmented messages;
 - out-of-order fragments;
@@ -399,4 +430,4 @@ The host test suite validates the radio-independent Command protocol/endpoint be
 - duplicate request suppression/result replay; and
 - deterministic shutdown completion.
 
-Concrete `ESPNowCommandTransport` then remains a thin adapter over already-established `ESPNowTransport` send/receive routing.
+Concrete `ESPNowCommandTransport` remains a thin adapter over already-established `ESPNowTransport` send/receive routing.
