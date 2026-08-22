@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.1 — 2026-08-22
+
+### Changed
+- Published the post-migration ESPressio ESP-Now package generation from `ESPressio-Development-Platform`.
+- Raised required Timing to `>=2.2.5 <3.0.0` and Observable to `>=3.0.2 <4.0.0`.
+- Raised optional Event to `>=6.0.1 <7.0.0`, Command to `>=1.0.1 <2.0.0`, and Security to `>=0.3.1 <1.0.0`.
+- Updated package metadata, integration documentation, CI validation, and dependency documentation.
+
+### Compatibility
+- No ESP-Now public API, wire framing, protocol identifiers, or runtime behaviour changes are introduced by this repository-relocation patch release.
+
 ## 0.8.0 — 2026-08-22
 
 ### Added
