@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.0 — 2026-08-22
+
+### Changed
+- Updated the optional ESPressio Command integration baseline to Command >= 1.0.0 < 2.0.0.
+- Adapted ESP-Now Command protocol v1 to Command 1.0.0 `CommandValue` positional and named containers.
+- Native scalar `CommandValue` instances are normalized through `ToString()` at the established protocol-v1 wire boundary and reconstructed as string-backed values on decode, preserving compatibility with existing protocol-v1 peers.
+- Null `CommandValue` is rejected because the existing protocol-v1 representation has no null value.
+- Added host regression coverage for typed integer, boolean and floating-point invocations, protocol normalization, and null rejection.
+- Updated ESP32 integration validation to released ESPressio Command 1.0.0.
+- Updated package/component metadata, README, Command integration guide, CI and textual/graphical dependency charts for ESP-Now 0.7.0.
+
+### Compatibility
+- ESP-Now Command wire protocol version remains 1; no peer wire-format migration is required.
+- Core ESP-NOW transport, peer/liveness behavior, clock synchronization, Event Transport and Security transport semantics are unchanged.
+- Event, Command and Security remain opt-in integrations outside the normal `ESPressio_ESPNow.hpp` umbrella.
+
+### Tracking
+- Implements #22.
+- Cascades ESPressio Command 1.0.0.
+
 ## 0.6.0 — 2026-08-21
 
 ### Added
@@ -174,37 +194,29 @@ Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https
 
 ### Added
 
--   Added `ESPNowEventTransport`, the first concrete transport for
-    ESPressio Event 5.4 distributed Serializable Events.
--   Added `ESPNowProtocol::EventTransport`.
--   Added bidirectional Serializable Event transport over ESP-NOW.
--   Added multiple Event destination peers.
--   Added Event packet fragmentation and reassembly.
--   Added bounded reassembly memory usage and incomplete-reassembly
-    timeout.
--   Added Event Transport packet-size protection.
--   Added Event 5.4 per-transport routing support.
--   Added point-to-point and all-device/broadcast Event Transport
-    examples.
+- Added `ESPNowEventTransport`, the first concrete transport for ESPressio Event 5.4 distributed Serializable Events.
+- Added `ESPNowProtocol::EventTransport`.
+- Added bidirectional Serializable Event transport over ESP-NOW.
+- Added multiple Event destination peers.
+- Added Event packet fragmentation and reassembly.
+- Added bounded reassembly memory usage and incomplete-reassembly timeout.
+- Added Event Transport packet-size protection.
+- Added Event 5.4 per-transport routing support.
+- Added point-to-point and all-device/broadcast Event Transport examples.
 
 ### Changed
 
--   Kept ESPressio Event and Serializable dependencies optional for
-    applications using only ESP-NOW clock synchronization.
--   Preserved receive-callback isolation and existing Timing/System
-    Clock synchronization.
+- Kept ESPressio Event and Serializable dependencies optional for applications using only ESP-NOW clock synchronization.
+- Preserved receive-callback isolation and existing Timing/System Clock synchronization.
 
 ## [0.1.0] - 2026-08-18
 
 ### Added
 
--   Initial ESPressio ESP-Now release.
--   Added reusable ESP-NOW transport infrastructure.
--   Added peer management with `ESPNowPeerConfig` and `MacAddress`.
--   Added versioned ESPressio ESP-NOW wire framing.
--   Reserved the initial protocol identifier for System Clock
-    synchronization.
--   Added transport implementation for ESPressio Timing System Clock
-    synchronization across two or more ESP32 devices.
--   Added example projects demonstrating multi-device clock
-    synchronization.
+- Initial ESPressio ESP-Now release.
+- Added reusable ESP-NOW transport infrastructure.
+- Added peer management with `ESPNowPeerConfig` and `MacAddress`.
+- Added versioned ESPressio ESP-NOW wire framing.
+- Reserved the initial protocol identifier for System Clock synchronization.
+- Added transport implementation for ESPressio Timing System Clock synchronization across two or more ESP32 devices.
+- Added example projects demonstrating multi-device clock synchronization.
