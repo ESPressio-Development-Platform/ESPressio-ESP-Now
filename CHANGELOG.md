@@ -29,7 +29,7 @@
 - Null `CommandValue` is rejected because the existing protocol-v1 representation has no null value.
 - Added host regression coverage for typed integer, boolean and floating-point invocations, protocol normalization, and null rejection.
 - Updated ESP32 integration validation to released ESPressio Command 1.0.0.
-- Updated package/component metadata, README, Command integration guide, CI and textual/graphical dependency charts for ESP-Now 0.8.0.
+- Updated package/component metadata, README, Command integration guide, CI and textual/graphical dependency charts for ESP-Now 0.7.0.
 
 ### Compatibility
 - ESP-Now Command wire protocol version remains 1; no peer wire-format migration is required.
