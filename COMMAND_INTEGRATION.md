@@ -401,7 +401,7 @@ Command handles intent; Event handles asynchronous observation of the resulting 
 
 ```ini
 lib_deps =
-    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.7.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.8.0
     https://github.com/ESPressio-Development-Platform/ESPressio-Command@^1.0.0
 ```
 
