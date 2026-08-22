@@ -8,27 +8,22 @@
         "url": "https://espressio.org"
     },
     "homepage": "https://espressio.org",
-    "build": {
-        "flags": ["-DESPRESSIO_ESPNOW"]
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git"
-    },
-    "version": "0.8.0",
+    "build": {"flags": ["-DESPRESSIO_ESPNOW"]},
+    "repository": {"type": "git", "url": "https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git"},
+    "version": "0.8.1",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "espressif32",
     "dependencies": [
         {
             "name": "ESPressio-Timing",
-            "version": ">=2.2.4 <3.0.0",
+            "version": ">=2.2.5 <3.0.0",
             "url": "https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git",
             "platforms": "espressif32"
         },
         {
             "name": "ESPressio-Observable",
-            "version": ">=3.0.1 <4.0.0",
+            "version": ">=3.0.2 <4.0.0",
             "url": "https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git",
             "platforms": "*"
         }
