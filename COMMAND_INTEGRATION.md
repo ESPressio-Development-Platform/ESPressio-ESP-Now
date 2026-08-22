@@ -1,6 +1,6 @@
 # ESPressio Command over ESP-NOW
 
-ESPressio ESP-Now 0.7.0 provides an optional transport for invoking **ESPressio Command >= 1.0.0 < 2.0.0** operations between ESP32 peers over ESP-NOW.
+ESPressio ESP-Now 0.8.0 provides an optional transport for invoking **ESPressio Command >= 1.0.0 < 2.0.0** operations between ESP32 peers over ESP-NOW.
 
 The integration is intentionally separate from ESPressio Event Transport:
 
@@ -16,7 +16,7 @@ Commands are therefore transported directly as `CommandInvocation` requests and 
 The integration requires:
 
 ```text
-ESPressio ESP-Now >= 0.7.0 < 1.0.0
+ESPressio ESP-Now >= 0.8.0 < 1.0.0
 ESPressio Command >= 1.0.0 < 2.0.0
 ESPressio Timing >= 2.2.4 < 3.0.0
 ESPressio Observable >= 3.0.1 < 4.0.0
@@ -236,7 +236,7 @@ Every request/result pair carries the same 64-bit request ID.
 
 ### Command 1.0.0 typed values and protocol-v1 compatibility
 
-The ESP-Now Command wire protocol intentionally remains **version 1**. Protocol v1 was defined with string-valued positional and named parameters, so ESP-Now 0.7.0 preserves that wire representation rather than forcing an incompatible protocol revision.
+The ESP-Now Command wire protocol intentionally remains **version 1**. Protocol v1 was defined with string-valued positional and named parameters, so ESP-Now 0.8.0 preserves that wire representation rather than forcing an incompatible protocol revision.
 
 When encoding a Command 1.x invocation:
 
@@ -401,8 +401,8 @@ Command handles intent; Event handles asynchronous observation of the resulting 
 
 ```ini
 lib_deps =
-    https://github.com/flowduino/ESPressio-ESP-Now@^0.7.0
-    https://github.com/flowduino/ESPressio-Command@^1.0.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.7.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-Command@^1.0.0
 ```
 
 Timing remains the required ESP-Now foundation and is declared by ESPressio ESP-Now itself.
