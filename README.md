@@ -2,9 +2,9 @@
 
 ESP-NOW transport and distributed ESPressio implementations for the ESPressio Development Platform.
 
-## Current Version — 0.8.0
+## Current Version — 0.8.1
 
-ESPressio ESP-Now **0.8.0** hardens the shared receive task for integrated protocol workloads. The default receive-task stack is increased from 4096 to 8192 bytes, and `ESPNowTransport` now exposes `GetReceiveTaskMinimumFreeStackBytes()` so hardware tests and applications can inspect observed receive-task stack headroom. Existing transport configuration remains source-compatible, and ESP-NOW wire framing and protocol identifiers are unchanged.
+ESPressio ESP-Now **0.8.1** is the repository-relocation dependency patch for the hardened 0.8 generation. The default receive-task stack is increased from 4096 to 8192 bytes, and `ESPNowTransport` now exposes `GetReceiveTaskMinimumFreeStackBytes()` so hardware tests and applications can inspect observed receive-task stack headroom. Existing transport configuration remains source-compatible, and ESP-NOW wire framing and protocol identifiers are unchanged.
 
 The public Event integration header and class names remain:
 
@@ -38,8 +38,8 @@ ESPNowSecurityProtocol
 Required:
 
 ```text
-ESPressio Timing >= 2.2.4 < 3.0.0
-ESPressio Observable >= 3.0.1 < 4.0.0
+ESPressio Timing >= 2.2.5 < 3.0.0
+ESPressio Observable >= 3.0.2 < 4.0.0
 Arduino-ESP32
 ```
 
@@ -47,13 +47,13 @@ Optional:
 
 ```text
 Event integration
-    ESPressio Event >= 6.0.0 < 7.0.0
+    ESPressio Event >= 6.0.1 < 7.0.0
 
 Optional Command integration
-    ESPressio Command >= 1.0.0 < 2.0.0
+    ESPressio Command >= 1.0.1 < 2.0.0
 
 Secure Transport
-    ESPressio Security >= 0.3.0 < 1.0.0
+    ESPressio Security >= 0.3.1 < 1.0.0
 ```
 
 The normal `ESPressio_ESPNow.hpp` umbrella remains free of Event, Command and Security includes.
@@ -66,9 +66,9 @@ Core transport/Timing use:
 
 ```ini
 lib_deps =
-    espressio-development-platform/ESPressio-ESP-Now@^0.8.0
-    espressio-development-platform/ESPressio-Timing@^2.2.4
-    espressio-development-platform/ESPressio-Observable@^3.0.1
+    espressio-development-platform/ESPressio-ESP-Now@^0.8.1
+    espressio-development-platform/ESPressio-Timing@^2.2.5
+    espressio-development-platform/ESPressio-Observable@^3.0.2
 
 build_flags =
     -std=gnu++17

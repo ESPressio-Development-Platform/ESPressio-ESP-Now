@@ -1,6 +1,6 @@
 # ESPressio Command over ESP-NOW
 
-ESPressio ESP-Now 0.8.0 provides an optional transport for invoking **ESPressio Command >= 1.0.0 < 2.0.0** operations between ESP32 peers over ESP-NOW.
+ESPressio ESP-Now 0.8.0 provides an optional transport for invoking **ESPressio Command >= 1.0.1 < 2.0.0** operations between ESP32 peers over ESP-NOW.
 
 The integration is intentionally separate from ESPressio Event Transport:
 
@@ -17,9 +17,9 @@ The integration requires:
 
 ```text
 ESPressio ESP-Now >= 0.8.0 < 1.0.0
-ESPressio Command >= 1.0.0 < 2.0.0
-ESPressio Timing >= 2.2.4 < 3.0.0
-ESPressio Observable >= 3.0.1 < 4.0.0
+ESPressio Command >= 1.0.1 < 2.0.0
+ESPressio Timing >= 2.2.5 < 3.0.0
+ESPressio Observable >= 3.0.2 < 4.0.0
 Arduino-ESP32
 ```
 
@@ -401,8 +401,8 @@ Command handles intent; Event handles asynchronous observation of the resulting 
 
 ```ini
 lib_deps =
-    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.8.0
-    https://github.com/ESPressio-Development-Platform/ESPressio-Command@^1.0.0
+    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now@^0.8.1
+    https://github.com/ESPressio-Development-Platform/ESPressio-Command@^1.0.1
 ```
 
 Timing remains the required ESP-Now foundation and is declared by ESPressio ESP-Now itself.
