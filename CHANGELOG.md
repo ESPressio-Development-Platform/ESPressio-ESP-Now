@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0 — 2026-08-22
+
+### Added
+- Added `ESPNowTransport::GetReceiveTaskMinimumFreeStackBytes()` so applications and hardware stress tests can inspect the minimum unused ESP-NOW receive-task stack observed since initialization.
+- The diagnostic returns `0` when the receive task is unavailable, including before initialization and after shutdown.
+- Added host regression coverage for the safer receive-task stack default.
+
+### Changed
+- Increased the default `ESPNowTransportConfig::ReceiveTaskStackSize` from 4096 to 8192 bytes after EventConsole-Lab hardware stress testing reproduced a FreeRTOS stack-canary failure while processing repeated Command traffic alongside Timing synchronization, Observable notifications, Security/Event integrations, and diagnostics.
+- Preserved the existing configurable stack-size field so applications with unusually deep protocol handlers can still select a larger or smaller allocation explicitly.
+- Corrected compile-time ESP-Now version macros to 0.8.0 and updated PlatformIO/Arduino package metadata, README, and textual/graphical dependency charts.
+
+### Compatibility
+- This is an interface-extending minor release: existing 0.7.x callers remain source-compatible and the new stack diagnostic is additive.
+- ESP-NOW wire framing, frame version, protocol identifiers, peer management, clock synchronization, Event Transport, Command protocol-v1, Security transport, and peer-liveness semantics are unchanged.
+- Registered protocol handlers continue to execute synchronously on the ESP-NOW receive task; 0.8.0 hardens the default stack allocation and makes remaining stack headroom observable without changing execution semantics.
+
+### Tracking
+- Implements #27.
+
 ## 0.7.0 — 2026-08-22
 
 ### Changed
