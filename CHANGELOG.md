@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.2 — 2026-08-23
+
+### Changed
+- Raised required Timing to `>=2.2.7 <3.0.0` while preserving Observable `>=3.0.2 <4.0.0`.
+- Raised optional Event to `>=6.0.2 <7.0.0`, Command to `>=1.0.2 <2.0.0`, and Security to `>=0.4.1 <1.0.0`.
+- Updated Event integration validation to Serializable 0.11.2, Units 0.2.6, Timing 2.2.7, Threads 3.1.6 and Event 6.0.2.
+- Updated Command/Security validation to Command 1.0.2 and Security 0.4.1.
+- Updated package metadata and README for ESP-Now 0.8.2.
+
+### Architecture
+- Timing and Observable remain the only required ESPressio dependencies.
+- Event, Command and Security remain opt-in and outside the normal `ESPressio_ESPNow.hpp` umbrella.
+- ESP-Now continues to own its concrete Event transport and ESP-Now lifecycle Event bridge.
+
+### Compatibility
+- No public ESP-Now API or runtime behaviour changes.
+- ESP-NOW wire framing, protocol IDs, clock synchronization, peer-liveness, Command protocol-v1, Event Transport, Security transport and receive-task semantics remain unchanged.
+
+### Tracking
+- Closes #33.
+
 ## 0.8.1 — 2026-08-22
 
 ### Changed
@@ -198,25 +219,16 @@
 
 All notable changes to this project are documented in this file.
 
-The structure follows the principles of [Keep a
-Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
-
-> **Historical note:** This changelog was reconstructed retrospectively
-> from published GitHub Releases, tags, release notes, repository
-> history, and the documented public API. Where an historical release
-> had little or no release-note detail, the entry is intentionally terse
-> rather than inferring unsupported intent.
+The structure follows the principles of Keep a Changelog and Semantic Versioning.
 
 ## [0.2.1] - 2026-08-19
 
 ### Changed
-
 - Updated the optional ESPressio Event Transport integration baseline from ESPressio Event 5.4.0 to 5.5.0.
 - Updated Event Transport compatibility documentation and compile-time dependency guidance for Event 5.5.0.
 - Bumped ESPressio ESP-Now package/version metadata to 0.2.1.
 
 ### Compatibility
-
 - No ESP-NOW transport interface or runtime behaviour changes are introduced by this patch release.
 - Existing ESP-NOW System Clock synchronization remains unchanged.
 - Event Transport remains opt-in; applications using only ESP-NOW/Timing functionality do not acquire ESPressio Event or Serializable dependencies.
@@ -224,7 +236,6 @@ Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https
 ## [0.2.0] - 2026-08-19
 
 ### Added
-
 - Added `ESPNowEventTransport`, the first concrete transport for ESPressio Event 5.4 distributed Serializable Events.
 - Added `ESPNowProtocol::EventTransport`.
 - Added bidirectional Serializable Event transport over ESP-NOW.
@@ -236,14 +247,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https
 - Added point-to-point and all-device/broadcast Event Transport examples.
 
 ### Changed
-
 - Kept ESPressio Event and Serializable dependencies optional for applications using only ESP-NOW clock synchronization.
 - Preserved receive-callback isolation and existing Timing/System Clock synchronization.
 
 ## [0.1.0] - 2026-08-18
 
 ### Added
-
 - Initial ESPressio ESP-Now release.
 - Added reusable ESP-NOW transport infrastructure.
 - Added peer management with `ESPNowPeerConfig` and `MacAddress`.
