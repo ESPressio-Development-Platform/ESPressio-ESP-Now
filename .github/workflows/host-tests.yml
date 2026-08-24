@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify core umbrella remains integration-neutral
+      - name: Verify integration boundaries and worker architecture
         shell: bash
         run: |
           if grep -E 'ESPressio_(Event|Command|Security)' src/ESPressio_ESPNow.hpp; then
@@ -43,6 +43,13 @@ jobs:
           test -f src/ESPressio_ESPNowEventTransport.hpp
           test -f src/ESPressio_ESPNowEvents.hpp
           test -f src/ESPressio_ESPNowTransportEventBridge.hpp
+          grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp
+          grep -q 'WorkerIterationIntervalMilliseconds' src/ESPressio_ESPNowTypes.hpp
+          grep -q 'RegisterMaintenanceHandler' src/ESPressio_ESPNowCommandTransport.hpp
+          if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then
+            echo 'ESP-Now transport must not regress to a raw receive task.' >&2
+            exit 1
+          fi
 
   esp32-integrations:
     runs-on: ubuntu-latest
@@ -130,6 +137,7 @@ jobs:
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
+          #include <ESPressio_ThreadManager.hpp>
           #include <ESPressio_WiFi.hpp>
           #include <ESPressio_ESPNow.hpp>
           #include <ESPressio_ESPNowEventTransport.hpp>
@@ -137,22 +145,29 @@ jobs:
           #include <ESPressio_ESPNowTransportEventBridge.hpp>
           #include <ESPressio_ESPNowCommandTransport.hpp>
           #include <ESPressio_ESPNowSecureTransport.hpp>
+
+          ESPressio::ESPNow::ESPNowCommandTransport commandTransport;
+
           void setup() {
-              ESPressio::WiFi::WiFiConfiguration wifiConfig;
-              wifiConfig.Mode = ESPressio::WiFi::WiFiMode::APUntilClient;
-              ESPressio::ESPNow::ESPNowTransportConfig espNowConfig;
-              espNowConfig.InitializeWiFi = false;
+              ESPressio::Threads::ThreadManager::GetInstance()->Initialize();
+              auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
+              ESPressio::ESPNow::ESPNowTransportConfig config;
+              config.InitializeWiFi = false;
+              config.Channel = 0;
+              config.WorkerIterationIntervalMilliseconds = 10;
+              transport.Initialize(config);
+              commandTransport.Initialize(transport);
+
               ESPressio::Command::CommandInvocation invocation;
               invocation.path = {"gpio", "write"};
               invocation.named["pin"] = 2;
               invocation.named["state"] = true;
-              ESPressio::ESPNow::ESPNowCommandProtocol::Request request;
-              request.RequestID = 1;
-              request.Invocation = invocation;
-              std::vector<uint8_t> encoded;
-              ESPressio::ESPNow::ESPNowCommandProtocol::EncodeRequest(request, encoded);
           }
-          void loop() {}
+
+          void loop() {
+              // #40 regression: Command maintenance is owned by the ESP-NOW
+              // PrecisionThread worker; no commandTransport.Update() required.
+          }
           EOF
-      - name: Compile ESP32 integrations including WiFi namespace coexistence
+      - name: Compile ESP32 integrations including PrecisionThread worker and WiFi coexistence
         run: pio run -d project/compile
