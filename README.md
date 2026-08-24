@@ -4,7 +4,7 @@ ESP-NOW transport and distributed ESPressio implementations for the ESPressio De
 
 ## Current Version — 0.8.3
 
-ESPressio ESP-Now **0.8.3** is a dependency-maintenance release aligning the hardened 0.8 generation with the released Serializable 0.11.3 cascade. The 8192-byte receive-task default and `GetReceiveTaskMinimumFreeStackBytes()` diagnostics introduced in 0.8.0 remain unchanged, as do ESP-NOW wire framing and protocol identifiers.
+ESPressio ESP-Now **0.8.3** is the current release generation aligned with Serializable 0.11.3. The release has been corrected in place under issue #40 to harden coexistence with normal ESP32 WiFi operation while preserving the 0.8.3 version number and existing ESP-NOW wire format.
 
 ## Dependencies
 
@@ -52,6 +52,47 @@ Incoming Wi-Fi callback data is copied into a bounded FreeRTOS queue. Protocol v
 const uint32_t minimumFreeBytes = transport.GetReceiveTaskMinimumFreeStackBytes();
 ```
 
+`ESPNowTransport::Send()` remains the compatibility boolean API. `SendDetailed()` returns an `ESPNowSendResult` containing a stable ESPressio failure class plus the native ESP-IDF `esp_err_t` value, and `GetLastSendResult()` exposes the most recent result for diagnostics.
+
+## Wi-Fi and ESP-NOW coexistence
+
+ESP-NOW and conventional WiFi are permitted to operate at the same time on ESP32 devices. They are not independent radios, however: both facilities use the same 2.4 GHz WiFi radio and therefore share its current channel and interface state.
+
+The important operating rules are:
+
+- An ESP32 cannot maintain one simultaneous WiFi channel for infrastructure/AP traffic and a different simultaneous ESP-NOW channel. There is one WiFi radio/channel at any instant.
+- When the station is associated with an infrastructure access point, that infrastructure network determines the effective radio channel. ESP-NOW peers must communicate on that same effective channel.
+- `ESPNowTransportConfig::Channel = 0` and `ESPNowPeerConfig::Channel = 0` mean "use/follow the current WiFi channel" and are the recommended settings when WiFi owns radio configuration.
+- In AP+STA mode, the station connection has channel priority. The local SoftAP follows the station's effective channel once associated.
+- Active WiFi scans temporarily hop the shared radio through other channels. ESP-NOW send/receive opportunities on the home channel can therefore be interrupted during a scan. Applications should expect transient ESP-NOW send failures or increased latency while scans are running and should retry appropriately.
+- WiFi association/reassociation, AP start/stop, and channel transitions can create short ESP-NOW disruption windows while the radio changes state.
+- ESP-NOW peers are associated with a local WiFi interface (`WIFI_IF_STA` or `WIFI_IF_AP`). Hard-coding the wrong interface can produce one-way communication or `ESP_ERR_ESPNOW_IF` send failures.
+
+### Automatic interface handling
+
+`ESPNowPeerConfig::Interface` defaults to `ESPNowWiFiInterface::Auto`. On ESP-IDF v5 and later, ESPressio records the local interface addressed by validated unicast ESP-NOW frames. If discovery initially added a peer using only broadcast information, the peer registration is corrected automatically when later unicast traffic reveals that the peer is addressing the other local interface.
+
+If no learned interface exists, `Auto` selects AP in AP-only mode and STA in STA/AP+STA modes. Applications with a fixed topology can explicitly select `Station` or `AccessPoint`.
+
+This automation addresses interface selection; it cannot create a second physical channel. Channel coexistence remains governed by the single ESP32 WiFi radio.
+
+### Send diagnostics
+
+A detailed send failure is classified as one of:
+
+```text
+NotInitialized
+InvalidArgument
+NoMemory
+PeerNotFound
+InterfaceMismatch
+ChannelMismatch
+Internal
+Unknown
+```
+
+The native ESP-IDF error value is preserved as well. Existing `OnESPNowSendFailed(...)` observers continue to work; new observers can override `OnESPNowSendFailedDetailed(...)` for the richer result. The ESP-Now Event bridge carries the same failure class and native code in `ESPNowSendFailedEvent`.
+
 ## Clock synchronization
 
 `ESPNowClockSynchronizer` transports ESPressio Timing synchronization exchanges over ESP-NOW. Timing remains responsible for sample validation, estimation and SystemClock discipline. ESP-Now 0.8.3 validates this surface against Timing 2.2.8.
@@ -84,7 +125,7 @@ Security integration remains opt-in and is validated against Security 0.4.2. `ES
 
 ## Observable lifecycle
 
-`IESPNowTransportObserver` remains the synchronous lifecycle surface for initialization, shutdown, peers, sends and validated inbound ESPressio frames. `ESPNowTransportEventBridge` optionally converts those observations into asynchronous Events.
+`IESPNowTransportObserver` is the synchronous lifecycle surface for initialization, shutdown, peers, sends and validated inbound ESPressio frames. The detailed send-failure callback added by #40 is additive and defaults to the original failure callback so existing observers remain compatible. `ESPNowTransportEventBridge` optionally converts those observations into asynchronous Events.
 
 ## Serializable 0.11.3 cascade generation
 
@@ -104,6 +145,6 @@ ESP-Now       0.8.3
 
 ## Compatibility
 
-No public ESP-Now API or runtime behaviour changes are introduced in 0.8.3. Wire framing, protocol IDs, peer management, clock synchronization, Event Transport, Command protocol-v1, Security transport, peer-liveness semantics and receive-task execution semantics are unchanged.
+The version remains **0.8.3** intentionally. Issue #40 corrects the existing release in place rather than starting another downstream version cascade. Existing `Send()` callers and observers implementing the original callback remain source-compatible. `ESPNowPeerConfig` gains an additive interface-selection field whose default is automatic. ESP-NOW wire framing, frame version, protocol IDs, clock synchronization payloads, Command protocol-v1 and Security framing are unchanged.
 
 See [COMMAND_INTEGRATION.md](COMMAND_INTEGRATION.md), [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md), [ESPRESSIO_DEPENDENCY_CHART.md](ESPRESSIO_DEPENDENCY_CHART.md), and [CHANGELOG.md](CHANGELOG.md) for further details.
