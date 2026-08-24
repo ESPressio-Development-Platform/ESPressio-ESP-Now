@@ -1,13 +1,10 @@
-# ESPressio Dependency Chart — Current Cascade Generation
+# ESPressio Dependency Chart — Current Released Generation
 
 ![ESPressio Library Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.svg)
 
-This document records the dependency generation validated by ESPressio ESP-Now 0.8.3. Arrows point from the consuming library to the library it consumes.
+This document records the completed Serializable 0.11.3 cascade and the dependency generation validated by ESPressio ESP-Now 0.8.3.
 
-- **Required** — the dependency is part of the library's normal/core contract.
-- **Opt-in** — the dependency is introduced only when the corresponding integration/header is selected.
-
-## Cascade generation
+## Released generation
 
 ```text
 Observable    3.0.2
@@ -21,24 +18,18 @@ Security      0.4.2
 Persistence   0.3.2
 Sockets       0.7.3
 ESP-Now       0.8.3
+WiFi          0.2.0
+Serial        0.8.1
 ```
 
-## Required dependencies
+## ESP-Now dependency position
 
 ```text
-Timing 2.2.8
-    -> Units >= 0.2.7 < 1.0.0
-    -> Observable >= 3.0.2 < 4.0.0
-
 ESP-Now 0.8.3
     -> Timing >= 2.2.8 < 3.0.0
     -> Observable >= 3.0.2 < 4.0.0
-```
 
-## ESP-Now opt-in integrations
-
-```text
-ESP-Now
+ESP-Now optional integrations
     - - -> Event >= 6.0.3 < 7.0.0
     - - -> Command >= 1.0.3 < 2.0.0
     - - -> Security >= 0.4.2 < 1.0.0
@@ -58,6 +49,4 @@ Command  -> ESP-Now  NONE
 Security -> ESP-Now  NONE
 ```
 
-Serial remains terminal/downstream. No upstream ESPressio library should depend on Serial.
-
-The next cascade step after ESP-Now 0.8.3 is to update downstream consumers, including WiFi where applicable and finally Serial.
+The Serializable 0.11.3 cascade is complete through WiFi 0.2.0 and terminal Serial 0.8.1. No upstream ESPressio library depends on Serial. ESPressio Tree remains standalone.
