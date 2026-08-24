@@ -88,6 +88,8 @@ jobs:
           ESPressio::WiFi::ESP32WiFiPlatform wifiPlatform;
           ESPressio::WiFi::WiFiManager wifiManager(wifiPlatform);
           ESPressio::WiFi::WiFiWorker wifiWorker(wifiManager);
+          auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
+          ESPressio::ESPNow::ESPNowWiFiCoordinator coordinator(transport, wifiManager);
 
           void setup() {
               ESPressio::WiFi::WiFiConfiguration wifiConfig;
@@ -105,11 +107,8 @@ jobs:
               transportConfig.InitializeWiFi = false;
               transportConfig.Channel = 0;
               transportConfig.WorkerIterationIntervalMilliseconds = 10;
-              auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
               transport.RegisterObserver(&observer);
               transport.Initialize(transportConfig);
-
-              ESPressio::ESPNow::ESPNowWiFiCoordinator coordinator(transport, wifiManager);
               coordinator.Initialize();
 
               ESPressio::ESPNow::ESPNowPeerConfig peer;
