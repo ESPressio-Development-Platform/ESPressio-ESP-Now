@@ -38,8 +38,20 @@ public:
     const ESPNow::MacAddress Destination;
     const uint8_t Protocol;
     const std::size_t PayloadLength;
-    ESPNowSendFailedEvent(const ESPNow::MacAddress& destination, uint8_t protocol, std::size_t payloadLength)
-        : Destination(destination), Protocol(protocol), PayloadLength(payloadLength) {}
+    const ESPNow::ESPNowSendFailure Failure;
+    const int32_t NativeError;
+
+    ESPNowSendFailedEvent(
+        const ESPNow::MacAddress& destination,
+        uint8_t protocol,
+        std::size_t payloadLength,
+        ESPNow::ESPNowSendFailure failure = ESPNow::ESPNowSendFailure::Unknown,
+        int32_t nativeError = 0
+    ) : Destination(destination),
+        Protocol(protocol),
+        PayloadLength(payloadLength),
+        Failure(failure),
+        NativeError(nativeError) {}
 };
 
 } // namespace ESPressio::Event
