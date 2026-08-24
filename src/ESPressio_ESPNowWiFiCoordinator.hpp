@@ -32,12 +32,12 @@ public:
     ~ESPNowWiFiCoordinator() override { Shutdown(); }
 
     bool Initialize() {
-        if (_observerHandle) return ApplyState(_wifiManager.RadioState(), true);
+        if (_observerHandle) return ApplyState(_wifiManager.RadioState(), false);
         if (!_transport.GetIsInitialized()) return false;
 
         _observerHandle = _wifiManager.RegisterRadioObserver(this);
         if (!_observerHandle) return false;
-        return ApplyState(_wifiManager.RadioState(), true);
+        return ApplyState(_wifiManager.RadioState(), false);
     }
 
     void Shutdown() {
@@ -79,14 +79,14 @@ public:
     }
 
     void OnWiFiRadioTransitionCompleted(
-        const WiFi::WiFiRadioState& before,
+        const WiFi::WiFiRadioState&,
         const WiFi::WiFiRadioState& after,
         WiFi::WiFiRadioTransitionReason
     ) override {
-        const bool modeChanged = before.Mode != after.Mode;
-        const bool preferredChanged =
-            ResolvePreferredInterface(before) != ResolvePreferredInterface(after);
-        (void)ApplyState(after, modeChanged || preferredChanged);
+        // First attempt the least-disruptive peer reconciliation. ApplyState
+        // automatically escalates to a native ESP-NOW rebuild only when the
+        // driver rejects that rebind.
+        (void)ApplyState(after, false);
     }
 
     void OnWiFiRadioStateChanged(
@@ -107,9 +107,8 @@ public:
     }
 
     void OnWiFiRadioScanCompleted(const WiFi::WiFiRadioState& after) override {
-        const bool wasSuspended = _scanSuspended;
         _scanSuspended = false;
-        (void)ApplyState(after, wasSuspended);
+        (void)ApplyState(after, false);
     }
 
 private:
@@ -136,14 +135,17 @@ private:
         binding.Channel = state.Channel;
         binding.Available = state.Mode != WiFi::WiFiRadioMode::Off && !_scanSuspended;
 
-        const bool rebuildNative =
-            forceNativeReinitialization || interfaceChanged || radioModeChanged;
-        bool success = _transport.ApplyRadioBinding(binding, rebuildNative);
+        // Normal coordination is intentionally lightweight: preserve the
+        // native ESP-NOW instance (and application-configured native security
+        // state such as a PMK) and modify/re-add managed peers in place.
+        bool success = _transport.ApplyRadioBinding(binding, forceNativeReinitialization);
 
-        if (!success && channelChanged && !rebuildNative) {
-            // Some IDF transitions leave the native ESP-NOW peer table bound
-            // to stale channel/interface internals even when esp_now_mod_peer
-            // was attempted. Escalate once to a controlled native rebuild.
+        if (!success && !forceNativeReinitialization &&
+            (interfaceChanged || channelChanged || radioModeChanged)) {
+            // Some IDF transitions can invalidate native ESP-NOW binding state
+            // more deeply than esp_now_mod_peer can repair. Escalate once to a
+            // controlled native rebuild while preserving ESPressio logical
+            // peers, protocol handlers and worker ownership.
             success = _transport.ApplyRadioBinding(binding, true);
         }
 
