@@ -1,0 +1,101 @@
+name: WiFi Coexistence Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  esp32-coexistence-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project/ESPressio-ESP-Now
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Timing
+          ref: 2.2.8
+          path: project/dependencies/ESPressio-Timing
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Observable
+          ref: 3.0.2
+          path: project/dependencies/ESPressio-Observable
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Units
+          ref: 0.2.7
+          path: project/dependencies/ESPressio-Units
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install platformio
+      - name: Create AP+STA coexistence consumer
+        shell: bash
+        run: |
+          mkdir -p project/compile/src
+          cat > project/compile/platformio.ini <<'EOF'
+          [env:esp32]
+          platform = espressif32
+          board = esp32dev
+          framework = arduino
+          build_flags = -std=gnu++17 -frtti
+          build_unflags = -std=gnu++11 -fno-rtti
+          lib_ldf_mode = deep+
+          lib_deps =
+              ../dependencies/ESPressio-Observable
+              ../dependencies/ESPressio-Units
+              ../dependencies/ESPressio-Timing
+              ../ESPressio-ESP-Now
+          EOF
+          cat > project/compile/src/main.cpp <<'EOF'
+          #include <Arduino.h>
+          #include <WiFi.h>
+          #include <ESPressio_ESPNow.hpp>
+
+          class Observer final : public ESPressio::ESPNow::IESPNowTransportObserver {
+          public:
+              void OnESPNowSendFailedDetailed(
+                  const ESPressio::ESPNow::MacAddress&,
+                  uint8_t,
+                  std::size_t,
+                  ESPressio::ESPNow::ESPNowSendFailure,
+                  int32_t
+              ) override {}
+          } observer;
+
+          void setup() {
+              ::WiFi.mode(WIFI_AP_STA);
+              ::WiFi.softAP("espnow-coexistence-test");
+              ESPressio::ESPNow::ESPNowTransportConfig transportConfig;
+              transportConfig.InitializeWiFi = false;
+              transportConfig.Channel = 0;
+              auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
+              transport.RegisterObserver(&observer);
+              transport.Initialize(transportConfig);
+
+              ESPressio::ESPNow::ESPNowPeerConfig peer;
+              const uint8_t address[6] = {0x02,0,0,0,0,1};
+              peer.Address = ESPressio::ESPNow::MacAddress(address);
+              peer.Channel = 0;
+              peer.Interface = ESPressio::ESPNow::ESPNowWiFiInterface::Auto;
+              (void)transport.AddPeer(peer);
+              (void)transport.SendDetailed(peer.Address, 64, nullptr, 0);
+              (void)transport.GetLastSendResult();
+          }
+          void loop() { delay(1000); }
+          EOF
+      - name: Compile coexistence surface
+        run: pio run -d project/compile
+
+  source-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard version and coexistence contract
+        shell: bash
+        run: |
+          grep -q 'Current Version — 0.8.3' README.md
+          grep -q 'ESPNowWiFiInterface' src/ESPressio_ESPNowTypes.hpp
+          grep -q 'SendDetailed' src/ESPressio_ESPNowTransport.hpp
+          grep -q 'Wi-Fi and ESP-NOW coexistence' README.md
