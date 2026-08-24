@@ -1,7 +1,7 @@
 {
     "name": "ESPressio-ESPNow",
     "description": "ESP-NOW transport and distributed ESPressio implementations for ESP32, including optional Event, Command, and Security transports",
-    "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,command,security,encryption,transport,observable,espressio",
+    "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,command,security,encryption,transport,observable,threads,espressio",
     "authors": {"name":"Simon J. Stuart","maintainer":true,"url":"https://espressio.org"},
     "homepage": "https://espressio.org",
     "build": {"flags": ["-DESPRESSIO_ESPNOW"]},
@@ -12,6 +12,7 @@
     "platforms": "espressif32",
     "dependencies": [
         {"name":"ESPressio-Timing","version":">=2.2.8 <3.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git","platforms":"espressif32"},
-        {"name":"ESPressio-Observable","version":">=3.0.2 <4.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git","platforms":"*"}
+        {"name":"ESPressio-Observable","version":">=3.0.2 <4.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git","platforms":"*"},
+        {"name":"ESPressio-Threads","version":">=3.1.7 <4.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git","platforms":"espressif32"}
     ]
 }
