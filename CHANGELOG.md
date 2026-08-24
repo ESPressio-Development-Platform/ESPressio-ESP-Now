@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.3 — 2026-08-24
+
+### Changed
+- Raised required Timing to `>=2.2.8 <3.0.0` while preserving Observable `>=3.0.2 <4.0.0`.
+- Raised optional Event to `>=6.0.3 <7.0.0`, Command to `>=1.0.3 <2.0.0`, and Security to `>=0.4.2 <1.0.0`.
+- Updated Event integration validation to Serializable 0.11.3, Units 0.2.7, Timing 2.2.8, Threads 3.1.7 and Event 6.0.3.
+- Updated Command/Security validation to Command 1.0.3 and Security 0.4.2.
+- Updated package, Arduino and component metadata for ESP-Now 0.8.3.
+- Updated README and dependency documentation for the Serializable 0.11.3 cascade generation.
+
+### Architecture
+- Timing and Observable remain the only required ESPressio dependencies.
+- Event, Command and Security remain opt-in and outside the normal `ESPressio_ESPNow.hpp` umbrella.
+- ESP-Now continues to own its concrete Event transport and ESP-Now lifecycle Event bridge.
+
+### Compatibility
+- No public ESP-Now API or runtime behaviour changes.
+- ESP-NOW wire framing, protocol IDs, clock synchronization, peer-liveness, Command protocol-v1, Event Transport, Security transport and receive-task semantics remain unchanged.
+
+### Tracking
+- Closes #35.
+
 ## 0.8.2 — 2026-08-23
 
 ### Changed
