@@ -73,7 +73,25 @@ public:
         uint8_t protocol,
         std::size_t payloadLength
     ) override {
+        // Compatibility path for callers/implementations that only provide the
+        // original observer callback.
         (new ESPNowSendFailedEvent(destination, protocol, payloadLength))->Queue();
+    }
+
+    void OnESPNowSendFailedDetailed(
+        const ESPNow::MacAddress& destination,
+        uint8_t protocol,
+        std::size_t payloadLength,
+        ESPNow::ESPNowSendFailure failure,
+        int32_t nativeError
+    ) override {
+        (new ESPNowSendFailedEvent(
+            destination,
+            protocol,
+            payloadLength,
+            failure,
+            nativeError
+        ))->Queue();
     }
 };
 

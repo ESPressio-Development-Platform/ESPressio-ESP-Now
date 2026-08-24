@@ -2,25 +2,38 @@
 
 ## 0.8.3 — 2026-08-24
 
+### Fixed
+- Fixed ESP-NOW/WiFi coexistence failures caused by hard-coding every peer to `WIFI_IF_STA`; automatic peer interface selection now supports STA, AP and AP+STA/APUntilClient operation and can learn/correct a peer interface from validated unicast receive metadata.
+- Preserved native `esp_now_send()` failures through `ESPNowSendResult`, including stable `InterfaceMismatch` and `ChannelMismatch` classifications, rather than collapsing every failure to a boolean.
+- Fixed a critical Command transport concurrency defect reproduced by EventConsole-Lab hardware testing: inbound `ESPNowCommandEndpoint::Receive()` mutated reassembly state on the ESP-NOW receive task while application-side `Update()` concurrently erased the same `std::vector` from Arduino `loop()`, producing a `LoadProhibited` panic in `std::vector<Reassembly>::erase()`.
+- Serialized the remaining application-thread Command `Invoke()` boundary against worker-owned endpoint processing.
+
 ### Changed
-- Raised required Timing to `>=2.2.8 <3.0.0` while preserving Observable `>=3.0.2 <4.0.0`.
-- Raised optional Event to `>=6.0.3 <7.0.0`, Command to `>=1.0.3 <2.0.0`, and Security to `>=0.4.2 <1.0.0`.
-- Updated Event integration validation to Serializable 0.11.3, Units 0.2.7, Timing 2.2.8, Threads 3.1.7 and Event 6.0.3.
-- Updated Command/Security validation to Command 1.0.3 and Security 0.4.2.
-- Updated package, Arduino and component metadata for ESP-Now 0.8.3.
-- Updated README and dependency documentation for the Serializable 0.11.3 cascade generation.
+- Replaced the raw FreeRTOS ESP-NOW receive task with an ESPressio `PrecisionThread` worker.
+- The ESP-IDF receive callback now performs bounded frame copying only; protocol validation, protocol handlers and registered maintenance callbacks run on the ESP-NOW worker.
+- Added `ESPNowTransportConfig::WorkerIterationIntervalMilliseconds` (default `5`) as a minimum worker iteration interval. Incoming frames remain queued until the next permitted iteration and do not bypass this rate limit.
+- Preserved the existing `ReceiveTaskStackSize`, `ReceiveTaskPriority`, `ReceiveTaskCore` and `ReceiveQueueLength` configuration fields; they now configure the managed worker and its bounded ingress queue.
+- `GetReceiveTaskMinimumFreeStackBytes()` remains source-compatible and now reports the minimum observed free stack of the managed worker.
+- `ESPNowCommandTransport` now registers periodic timeout/reassembly/duplicate maintenance with the transport worker. Applications no longer need to call `Update()` from Arduino `loop()`; the method remains as a safe compatibility hook.
+- Added required ESPressio Threads `>=3.1.7 <4.0.0` because the transport now owns a `PrecisionThread` worker.
+- Updated README with explicit WiFi/ESP-NOW coexistence rules: one shared 2.4 GHz radio, infrastructure-channel ownership, AP+STA channel behavior, scan/channel-transition interference, peer-interface requirements and the impossibility of independent simultaneous WiFi/ESP-NOW channels on one ESP32.
+- Added CI guards preventing regression to a raw `xTaskCreatePinnedToCore()` receive task and compiling the worker/Command integration without application-loop maintenance.
 
 ### Architecture
-- Timing and Observable remain the only required ESPressio dependencies.
-- Event, Command and Security remain opt-in and outside the normal `ESPressio_ESPNow.hpp` umbrella.
-- ESP-Now continues to own its concrete Event transport and ESP-Now lifecycle Event bridge.
+- ESP-NOW mutable receive/protocol-maintenance state is now worker-owned instead of split across the ESP-IDF receive task and application loop.
+- Application-thread Command submissions cross a narrow synchronization boundary; receive/reassembly/timeout/duplicate processing is performed by the ESP-NOW worker.
+- Event, Command and Security remain opt-in integrations outside the normal `ESPressio_ESPNow.hpp` umbrella.
 
-### Compatibility
-- No public ESP-Now API or runtime behaviour changes.
-- ESP-NOW wire framing, protocol IDs, clock synchronization, peer-liveness, Command protocol-v1, Event Transport, Security transport and receive-task semantics remain unchanged.
+### Compatibility / release mutation
+- The version intentionally remains **0.8.3**. The previous 0.8.3 implementation is considered unstable and is wholly invalidated by this critical correction; the existing release/tag will be mutated rather than issuing another dependency cascade.
+- This intentionally overrides normal semantic-versioning expectations for this unreleased-to-consumers generation.
+- Threads is now a required dependency and its infrastructure must be initialized before `ESPNowTransport::Initialize()`.
+- Existing ESP-NOW wire framing, frame version, protocol IDs, clock synchronization payloads, Command protocol-v1 and Security framing remain unchanged.
+- Existing boolean `Send()` and manual `ESPNowCommandTransport::Update()` callers remain source-compatible.
 
 ### Tracking
 - Closes #35.
+- Implements #40.
 
 ## 0.8.2 — 2026-08-23
 

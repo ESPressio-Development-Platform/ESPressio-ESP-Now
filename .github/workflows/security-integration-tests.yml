@@ -33,6 +33,8 @@ jobs:
         with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: 0.2.7, path: deps/ESPressio-Units}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: 3.0.2, path: deps/ESPressio-Observable}
+      - uses: actions/checkout@v4
+        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: 3.1.7, path: deps/ESPressio-Threads}
       - name: Install PlatformIO
         run: pip install platformio
       - name: Create PlatformIO consumer project
@@ -40,7 +42,7 @@ jobs:
         run: |
           PROJECT="$RUNNER_TEMP/espressio-espnow-security-ci"; mkdir -p "$PROJECT/src" "$PROJECT/lib"
           rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
-          for DEP in ESPressio-Security ESPressio-Timing ESPressio-Units ESPressio-Observable; do cp -R "deps/$DEP" "$PROJECT/lib/$DEP"; done
+          for DEP in ESPressio-Security ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Threads; do cp -R "deps/$DEP" "$PROJECT/lib/$DEP"; done
           cat > "$PROJECT/platformio.ini" <<'EOF'
           [env:esp32dev]
           platform = espressif32
