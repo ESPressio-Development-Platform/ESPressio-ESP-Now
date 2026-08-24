@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -29,6 +30,10 @@
     #define ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS 8
 #endif
 
+#ifndef ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS
+    #define ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS 20
+#endif
+
 namespace ESPressio {
 namespace ESPNow {
 
@@ -55,7 +60,15 @@ private:
         MacAddress Source;
         uint64_t ReceiveMonotonicNanoseconds = 0;
         uint16_t Length = 0;
+        wifi_interface_t LocalInterface = WIFI_IF_STA;
+        bool HasLocalInterface = false;
         uint8_t Data[MaximumFrameSize] = {0};
+    };
+
+    struct PeerInterfaceHint {
+        bool Used = false;
+        MacAddress Address;
+        wifi_interface_t Interface = WIFI_IF_STA;
     };
 
     class TransportObservable final : public Observable::ThreadSafeObservable {
@@ -76,7 +89,11 @@ private:
         void PeerRemoved(const MacAddress& address) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowPeerRemoved(address); }); }
         void FrameReceived(const MacAddress& address, uint8_t protocol, std::size_t size, uint64_t timestamp) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowFrameReceived(address, protocol, size, timestamp); }); }
         void SendAccepted(const MacAddress& address, uint8_t protocol, std::size_t size) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowSendAccepted(address, protocol, size); }); }
-        void SendFailed(const MacAddress& address, uint8_t protocol, std::size_t size) { Notify([&](IESPNowTransportObserver* observer){ observer->OnESPNowSendFailed(address, protocol, size); }); }
+        void SendFailed(const MacAddress& address, uint8_t protocol, std::size_t size, ESPNowSendFailure failure, int32_t nativeError) {
+            Notify([&](IESPNowTransportObserver* observer){
+                observer->OnESPNowSendFailedDetailed(address, protocol, size, failure, nativeError);
+            });
+        }
     };
 
     ESPNowTransportConfig _config;
@@ -84,8 +101,12 @@ private:
     TaskHandle_t _receiveTask = nullptr;
     std::array<HandlerRecord, ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS> _handlers;
     mutable std::mutex _handlerMutex;
+    std::array<PeerInterfaceHint, ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS> _peerInterfaceHints{};
+    mutable std::mutex _peerInterfaceMutex;
     bool _initialized = false;
     std::shared_ptr<TransportObservable> _observable = std::make_shared<TransportObservable>();
+    std::atomic<ESPNowSendFailure> _lastSendFailure{ESPNowSendFailure::None};
+    std::atomic<int32_t> _lastSendNativeError{0};
 
     static ESPNowTransport*& CallbackInstance() {
         static ESPNowTransport* instance = nullptr;
@@ -96,6 +117,117 @@ private:
 
     static uint64_t GetRawMonotonicNanoseconds() {
         return static_cast<uint64_t>(esp_timer_get_time()) * 1000ULL;
+    }
+
+    static ESPNowSendFailure ClassifySendFailure(esp_err_t error) {
+        if (error == ESP_OK) return ESPNowSendFailure::None;
+#ifdef ESP_ERR_ESPNOW_NOT_INIT
+        if (error == ESP_ERR_ESPNOW_NOT_INIT) return ESPNowSendFailure::NotInitialized;
+#endif
+#ifdef ESP_ERR_ESPNOW_ARG
+        if (error == ESP_ERR_ESPNOW_ARG) return ESPNowSendFailure::InvalidArgument;
+#endif
+#ifdef ESP_ERR_ESPNOW_NO_MEM
+        if (error == ESP_ERR_ESPNOW_NO_MEM) return ESPNowSendFailure::NoMemory;
+#endif
+#ifdef ESP_ERR_ESPNOW_NOT_FOUND
+        if (error == ESP_ERR_ESPNOW_NOT_FOUND) return ESPNowSendFailure::PeerNotFound;
+#endif
+#ifdef ESP_ERR_ESPNOW_IF
+        if (error == ESP_ERR_ESPNOW_IF) return ESPNowSendFailure::InterfaceMismatch;
+#endif
+#ifdef ESP_ERR_ESPNOW_CHAN
+        if (error == ESP_ERR_ESPNOW_CHAN) return ESPNowSendFailure::ChannelMismatch;
+#endif
+#ifdef ESP_ERR_ESPNOW_INTERNAL
+        if (error == ESP_ERR_ESPNOW_INTERNAL) return ESPNowSendFailure::Internal;
+#endif
+        return ESPNowSendFailure::Unknown;
+    }
+
+    static wifi_interface_t ExplicitInterface(ESPNowWiFiInterface interface) {
+        return interface == ESPNowWiFiInterface::AccessPoint ? WIFI_IF_AP : WIFI_IF_STA;
+    }
+
+    static wifi_interface_t CurrentDefaultInterface() {
+        wifi_mode_t mode = WIFI_MODE_NULL;
+        if (esp_wifi_get_mode(&mode) != ESP_OK) return WIFI_IF_STA;
+        if (mode == WIFI_MODE_AP) return WIFI_IF_AP;
+        // STA is the stable default for STA and AP+STA. A learned unicast
+        // receive-interface hint takes precedence when available.
+        return WIFI_IF_STA;
+    }
+
+    static bool ResolveLocalInterface(const uint8_t* destination, wifi_interface_t& interface) {
+        if (destination == nullptr) return false;
+        static const uint8_t broadcast[MacAddressLength] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+        if (std::memcmp(destination, broadcast, MacAddressLength) == 0) return false;
+
+        uint8_t local[MacAddressLength] = {};
+        if (esp_wifi_get_mac(WIFI_IF_STA, local) == ESP_OK &&
+            std::memcmp(destination, local, MacAddressLength) == 0) {
+            interface = WIFI_IF_STA;
+            return true;
+        }
+        if (esp_wifi_get_mac(WIFI_IF_AP, local) == ESP_OK &&
+            std::memcmp(destination, local, MacAddressLength) == 0) {
+            interface = WIFI_IF_AP;
+            return true;
+        }
+        return false;
+    }
+
+    bool FindPeerInterfaceHint(const MacAddress& address, wifi_interface_t& interface) const {
+        std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
+        for (const auto& hint : _peerInterfaceHints) {
+            if (hint.Used && hint.Address == address) {
+                interface = hint.Interface;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void RememberPeerInterface(const MacAddress& address, wifi_interface_t interface) {
+        if (address.IsZero()) return;
+        {
+            std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
+            PeerInterfaceHint* freeHint = nullptr;
+            for (auto& hint : _peerInterfaceHints) {
+                if (hint.Used && hint.Address == address) {
+                    hint.Interface = interface;
+                    freeHint = nullptr;
+                    break;
+                }
+                if (!hint.Used && freeHint == nullptr) freeHint = &hint;
+            }
+            if (freeHint != nullptr) {
+                freeHint->Used = true;
+                freeHint->Address = address;
+                freeHint->Interface = interface;
+            }
+        }
+
+        // If discovery already added the peer from a broadcast frame, correct
+        // its transmit interface as soon as a unicast frame tells us which
+        // local interface the peer actually addressed.
+        if (esp_now_is_peer_exist(address.Bytes)) {
+            esp_now_peer_info_t peer{};
+            if (esp_now_get_peer(address.Bytes, &peer) == ESP_OK && peer.ifidx != interface) {
+                peer.ifidx = interface;
+                (void)esp_now_mod_peer(&peer);
+            }
+        }
+    }
+
+    void ClearPeerInterfaceHint(const MacAddress& address) {
+        std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
+        for (auto& hint : _peerInterfaceHints) {
+            if (hint.Used && hint.Address == address) {
+                hint = PeerInterfaceHint{};
+                return;
+            }
+        }
     }
 
     static void ReceiveTaskEntry(void* parameter) {
@@ -130,6 +262,8 @@ private:
             std::memcpy(received.Payload, frame.Data + sizeof(WireHeader), header.PayloadLength);
         }
 
+        if (frame.HasLocalInterface) RememberPeerInterface(received.Source, frame.LocalInterface);
+
         // A frame that reaches this point has a valid ESPressio wire header and
         // bounded payload. Count it as peer-liveness evidence regardless of
         // protocol before handing it to the protocol-specific consumer.
@@ -153,7 +287,12 @@ private:
         if (handler) handler(received);
     }
 
-    static void QueueReceivedData(const uint8_t* source, const uint8_t* data, int length) {
+    static void QueueReceivedData(
+        const uint8_t* source,
+        const uint8_t* destination,
+        const uint8_t* data,
+        int length
+    ) {
         ESPNowTransport* self = CallbackInstance();
         if (self == nullptr || !self->_initialized || self->_receiveQueue == nullptr ||
             source == nullptr || data == nullptr || length <= 0) return;
@@ -162,17 +301,23 @@ private:
         frame.Source = MacAddress(source);
         frame.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
         frame.Length = static_cast<uint16_t>(length > static_cast<int>(MaximumFrameSize) ? MaximumFrameSize : length);
+        frame.HasLocalInterface = ResolveLocalInterface(destination, frame.LocalInterface);
         std::memcpy(frame.Data, data, frame.Length);
         xQueueSend(self->_receiveQueue, &frame, 0);
     }
 
     #if ESP_IDF_VERSION_MAJOR >= 5
     static void ReceiveCallback(const esp_now_recv_info_t* info, const uint8_t* data, int length) {
-        QueueReceivedData(info == nullptr ? nullptr : info->src_addr, data, length);
+        QueueReceivedData(
+            info == nullptr ? nullptr : info->src_addr,
+            info == nullptr ? nullptr : info->des_addr,
+            data,
+            length
+        );
     }
     #else
     static void ReceiveCallback(const uint8_t* source, const uint8_t* data, int length) {
-        QueueReceivedData(source, data, length);
+        QueueReceivedData(source, nullptr, data, length);
     }
     #endif
 
@@ -246,6 +391,8 @@ public:
             return false;
         }
 
+        _lastSendFailure.store(ESPNowSendFailure::None);
+        _lastSendNativeError.store(0);
         _initialized = true;
         _observable->Initialized();
         return true;
@@ -272,6 +419,10 @@ public:
             std::lock_guard<std::mutex> lock(_handlerMutex);
             for (auto& record : _handlers) record = HandlerRecord();
         }
+        {
+            std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
+            for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{};
+        }
 
         _observable->Shutdown();
     }
@@ -288,6 +439,14 @@ public:
         TaskHandle_t task = _receiveTask;
         if (task == nullptr) return 0;
         return static_cast<uint32_t>(uxTaskGetStackHighWaterMark(task));
+    }
+
+    ESPNowSendResult GetLastSendResult() const noexcept {
+        ESPNowSendResult result;
+        result.Failure = _lastSendFailure.load();
+        result.NativeError = _lastSendNativeError.load();
+        result.Success = result.Failure == ESPNowSendFailure::None && result.NativeError == 0;
+        return result;
     }
 
     bool RegisterProtocolHandler(uint8_t protocol, ProtocolHandler handler) {
@@ -324,10 +483,17 @@ public:
         if (!_initialized || config.Address.IsZero()) return false;
         if (esp_now_is_peer_exist(config.Address.Bytes)) return true;
 
+        wifi_interface_t interface = WIFI_IF_STA;
+        if (config.Interface == ESPNowWiFiInterface::Auto) {
+            if (!FindPeerInterfaceHint(config.Address, interface)) interface = CurrentDefaultInterface();
+        } else {
+            interface = ExplicitInterface(config.Interface);
+        }
+
         esp_now_peer_info_t peer = {};
         std::memcpy(peer.peer_addr, config.Address.Bytes, MacAddressLength);
         peer.channel = config.Channel;
-        peer.ifidx = WIFI_IF_STA;
+        peer.ifidx = interface;
         peer.encrypt = config.Encrypt;
         if (config.Encrypt) std::memcpy(peer.lmk, config.LocalMasterKey, sizeof(peer.lmk));
 
@@ -341,29 +507,63 @@ public:
         const bool existed = esp_now_is_peer_exist(address.Bytes);
         const esp_err_t result = esp_now_del_peer(address.Bytes);
         const bool success = result == ESP_OK || result == ESP_ERR_ESPNOW_NOT_FOUND;
+        if (success) ClearPeerInterfaceHint(address);
         if (success && existed) _observable->PeerRemoved(address);
         return success;
     }
 
+    ESPNowSendResult SendDetailed(
+        const MacAddress& destination,
+        uint8_t protocol,
+        const void* payload,
+        std::size_t payloadLength
+    ) {
+        ESPNowSendResult result;
+        if (!_initialized) {
+            result.Failure = ESPNowSendFailure::NotInitialized;
+            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT);
+        } else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) {
+            result.Failure = ESPNowSendFailure::InvalidArgument;
+            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG);
+        } else {
+            uint8_t frame[MaximumFrameSize] = {0};
+            WireHeader header;
+            header.Protocol = protocol;
+            header.PayloadLength = static_cast<uint16_t>(payloadLength);
+            std::memcpy(frame, &header, sizeof(header));
+            if (payload != nullptr && payloadLength > 0) {
+                std::memcpy(frame + sizeof(header), payload, payloadLength);
+            }
+
+            const esp_err_t native = esp_now_send(
+                destination.Bytes,
+                frame,
+                sizeof(header) + payloadLength
+            );
+            result.Success = native == ESP_OK;
+            result.NativeError = static_cast<int32_t>(native);
+            result.Failure = ClassifySendFailure(native);
+        }
+
+        _lastSendFailure.store(result.Failure);
+        _lastSendNativeError.store(result.NativeError);
+
+        if (result.Success) {
+            _observable->SendAccepted(destination, protocol, payloadLength);
+        } else {
+            _observable->SendFailed(
+                destination,
+                protocol,
+                payloadLength,
+                result.Failure,
+                result.NativeError
+            );
+        }
+        return result;
+    }
+
     bool Send(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) {
-        if (!_initialized || destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) {
-            _observable->SendFailed(destination, protocol, payloadLength);
-            return false;
-        }
-
-        uint8_t frame[MaximumFrameSize] = {0};
-        WireHeader header;
-        header.Protocol = protocol;
-        header.PayloadLength = static_cast<uint16_t>(payloadLength);
-        std::memcpy(frame, &header, sizeof(header));
-        if (payload != nullptr && payloadLength > 0) {
-            std::memcpy(frame + sizeof(header), payload, payloadLength);
-        }
-
-        const bool accepted = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength) == ESP_OK;
-        if (accepted) _observable->SendAccepted(destination, protocol, payloadLength);
-        else _observable->SendFailed(destination, protocol, payloadLength);
-        return accepted;
+        return SendDetailed(destination, protocol, payload, payloadLength).Success;
     }
 
     uint64_t GetMonotonicTimestampNanoseconds() const {
