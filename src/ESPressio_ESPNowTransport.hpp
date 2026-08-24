@@ -130,9 +130,6 @@ private:
             std::memcpy(received.Payload, frame.Data + sizeof(WireHeader), header.PayloadLength);
         }
 
-        // A frame that reaches this point has a valid ESPressio wire header and
-        // bounded payload. Count it as peer-liveness evidence regardless of
-        // protocol before handing it to the protocol-specific consumer.
         _observable->FrameReceived(
             received.Source,
             received.Protocol,
@@ -197,7 +194,7 @@ public:
         if (_initialized) return true;
         _config = config;
 
-        if (_config.InitializeWiFi) WiFi.mode(WIFI_STA);
+        if (_config.InitializeWiFi) ::WiFi.mode(WIFI_STA);
 
         if (_config.Channel != 0 && esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
             _observable->InitializationFailed();
@@ -278,12 +275,6 @@ public:
 
     bool GetIsInitialized() const { return _initialized; }
 
-    /*
-     * Return the smallest amount of unused receive-task stack observed since
-     * the task was created. ESP-IDF's FreeRTOS port reports the high-water mark
-     * in bytes. A zero value means the receive task is not currently available
-     * (for example before Initialize() or after Shutdown()).
-     */
     uint32_t GetReceiveTaskMinimumFreeStackBytes() const {
         TaskHandle_t task = _receiveTask;
         if (task == nullptr) return 0;
