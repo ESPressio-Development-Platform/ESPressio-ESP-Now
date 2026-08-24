@@ -26,6 +26,11 @@ jobs:
           repository: ESPressio-Development-Platform/ESPressio-Units
           ref: 0.2.7
           path: project/dependencies/ESPressio-Units
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Threads
+          ref: 3.1.7
+          path: project/dependencies/ESPressio-Threads
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -46,11 +51,13 @@ jobs:
               ../dependencies/ESPressio-Observable
               ../dependencies/ESPressio-Units
               ../dependencies/ESPressio-Timing
+              ../dependencies/ESPressio-Threads
               ../ESPressio-ESP-Now
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
           #include <WiFi.h>
+          #include <ESPressio_ThreadManager.hpp>
           #include <ESPressio_ESPNow.hpp>
 
           class Observer final : public ESPressio::ESPNow::IESPNowTransportObserver {
@@ -65,11 +72,13 @@ jobs:
           } observer;
 
           void setup() {
+              ESPressio::Threads::ThreadManager::GetInstance()->Initialize();
               ::WiFi.mode(WIFI_AP_STA);
               ::WiFi.softAP("espnow-coexistence-test");
               ESPressio::ESPNow::ESPNowTransportConfig transportConfig;
               transportConfig.InitializeWiFi = false;
               transportConfig.Channel = 0;
+              transportConfig.WorkerIterationIntervalMilliseconds = 10;
               auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
               transport.RegisterObserver(&observer);
               transport.Initialize(transportConfig);
@@ -92,10 +101,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Guard version and coexistence contract
+      - name: Guard version, coexistence and worker contract
         shell: bash
         run: |
           grep -q 'Current Version — 0.8.3' README.md
           grep -q 'ESPNowWiFiInterface' src/ESPressio_ESPNowTypes.hpp
           grep -q 'SendDetailed' src/ESPressio_ESPNowTransport.hpp
           grep -q 'Wi-Fi and ESP-NOW coexistence' README.md
+          grep -q 'WorkerIterationIntervalMilliseconds' src/ESPressio_ESPNowTypes.hpp
+          grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp
+          if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then
+            echo 'Raw ESP-NOW receive task regressed into transport.' >&2
+            exit 1
+          fi
