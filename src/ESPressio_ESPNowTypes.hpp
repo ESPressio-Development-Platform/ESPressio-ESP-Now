@@ -89,10 +89,15 @@ struct ESPNowTransportConfig {
 
     // Preserved 0.8.x names: these now configure the ESPressio PrecisionThread
     // worker that owns receive processing and protocol maintenance.
-    uint32_t ReceiveTaskStackSize = 8192;
+    //
+    // #43: the previous 8192-byte / 12-frame defaults consumed an excessive
+    // amount of scarce internal RAM on classic ESP32 targets once WiFi, Event,
+    // M5Unified and ESP-NOW coexisted. Keep both values configurable, but use
+    // bounded defaults that leave operating headroom on constrained devices.
+    uint32_t ReceiveTaskStackSize = 4096;
     UBaseType_t ReceiveTaskPriority = 2;
     BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
-    std::size_t ReceiveQueueLength = 12;
+    std::size_t ReceiveQueueLength = 6;
 
     // Minimum start-to-start interval for ESP-NOW worker iterations. Incoming
     // frames remain queued until the next permitted iteration; they do not
