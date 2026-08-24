@@ -45,6 +45,7 @@ enum class ESPNowSendFailure : uint8_t {
     PeerNotFound,
     InterfaceMismatch,
     ChannelMismatch,
+    RadioUnavailable,
     Internal,
     Unknown
 };
@@ -70,6 +71,16 @@ struct MacAddress {
         static const uint8_t zero[MacAddressLength] = {0,0,0,0,0,0};
         return std::memcmp(Bytes, zero, MacAddressLength) == 0;
     }
+};
+
+// Logical binding between ESP-NOW and the shared WiFi radio. WiFi remains the
+// authority for native radio mode/channel; ESP-NOW consumes this snapshot to
+// rebind Auto peers and to expose explicit temporary-unavailability windows
+// such as WiFi scans and disruptive mode transitions.
+struct ESPNowRadioBinding {
+    ESPNowWiFiInterface PreferredInterface = ESPNowWiFiInterface::Auto;
+    uint8_t Channel = 0;
+    bool Available = true;
 };
 
 struct ESPNowTransportConfig {
