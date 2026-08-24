@@ -90,6 +90,11 @@ jobs:
           repository: ESPressio-Development-Platform/ESPressio-Threads
           ref: 3.1.7
           path: project/dependencies/ESPressio-Threads
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-WiFi
+          ref: 0.2.0
+          path: project/dependencies/ESPressio-WiFi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -120,10 +125,12 @@ jobs:
               ../dependencies/ESPressio-Event
               ../dependencies/ESPressio-Command
               ../dependencies/ESPressio-Security
+              ../dependencies/ESPressio-WiFi
               ../ESPressio-ESPNow
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
+          #include <ESPressio_WiFi.hpp>
           #include <ESPressio_ESPNow.hpp>
           #include <ESPressio_ESPNowEventTransport.hpp>
           #include <ESPressio_ESPNowEvents.hpp>
@@ -131,6 +138,10 @@ jobs:
           #include <ESPressio_ESPNowCommandTransport.hpp>
           #include <ESPressio_ESPNowSecureTransport.hpp>
           void setup() {
+              ESPressio::WiFi::WiFiConfiguration wifiConfig;
+              wifiConfig.Mode = ESPressio::WiFi::WiFiMode::APUntilClient;
+              ESPressio::ESPNow::ESPNowTransportConfig espNowConfig;
+              espNowConfig.InitializeWiFi = false;
               ESPressio::Command::CommandInvocation invocation;
               invocation.path = {"gpio", "write"};
               invocation.named["pin"] = 2;
@@ -143,5 +154,5 @@ jobs:
           }
           void loop() {}
           EOF
-      - name: Compile ESP32 integrations
+      - name: Compile ESP32 integrations including WiFi namespace coexistence
         run: pio run -d project/compile

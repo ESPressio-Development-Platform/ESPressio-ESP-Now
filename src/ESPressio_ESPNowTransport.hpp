@@ -197,7 +197,7 @@ public:
         if (_initialized) return true;
         _config = config;
 
-        if (_config.InitializeWiFi) WiFi.mode(WIFI_STA);
+        if (_config.InitializeWiFi) ::WiFi.mode(WIFI_STA);
 
         if (_config.Channel != 0 && esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
             _observable->InitializationFailed();
