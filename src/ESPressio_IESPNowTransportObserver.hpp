@@ -49,6 +49,22 @@ public:
         uint8_t,
         std::size_t
     ) {}
+
+    /*
+     * Detailed failure callback added by #40. The default implementation
+     * delegates to the original callback, so existing observers remain source
+     * compatible while newer observers can inspect the stable failure class
+     * and native ESP-IDF esp_err_t value.
+     */
+    virtual void OnESPNowSendFailedDetailed(
+        const MacAddress& destination,
+        uint8_t protocol,
+        std::size_t payloadLength,
+        ESPNowSendFailure,
+        int32_t
+    ) {
+        OnESPNowSendFailed(destination, protocol, payloadLength);
+    }
 };
 
 } // namespace ESPressio::ESPNow
