@@ -227,8 +227,6 @@ private:
         if (mode == WIFI_MODE_AP) return WIFI_IF_AP;
         if (mode == WIFI_MODE_STA) return WIFI_IF_STA;
         if (mode == WIFI_MODE_APSTA) {
-            // In APSTA, prefer a connected infrastructure STA; otherwise the
-            // active AP is the useful endpoint (not an unconnected STA).
             return ::WiFi.status() == WL_CONNECTED ? WIFI_IF_STA : WIFI_IF_AP;
         }
         return WIFI_IF_STA;
@@ -241,15 +239,11 @@ private:
 
     wifi_interface_t ResolvePeerInterface(const ESPNowPeerConfig& config) const {
         if (config.Interface != ESPNowWiFiInterface::Auto) return ExplicitInterface(config.Interface);
-
         wifi_interface_t hinted = WIFI_IF_STA;
         if (FindPeerInterfaceHint(config.Address, hinted)) return hinted;
-
         const auto binding = RadioBindingSnapshot();
-        if (binding.PreferredInterface == ESPNowWiFiInterface::Station ||
-            binding.PreferredInterface == ESPNowWiFiInterface::AccessPoint) {
+        if (binding.PreferredInterface == ESPNowWiFiInterface::Station || binding.PreferredInterface == ESPNowWiFiInterface::AccessPoint)
             return ExplicitInterface(binding.PreferredInterface);
-        }
         return CurrentDefaultInterface();
     }
 
@@ -258,29 +252,20 @@ private:
         static const uint8_t broadcast[MacAddressLength] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
         if (std::memcmp(destination, broadcast, MacAddressLength) == 0) return false;
         uint8_t local[MacAddressLength] = {};
-        if (esp_wifi_get_mac(WIFI_IF_STA, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) {
-            interface = WIFI_IF_STA; return true;
-        }
-        if (esp_wifi_get_mac(WIFI_IF_AP, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) {
-            interface = WIFI_IF_AP; return true;
-        }
+        if (esp_wifi_get_mac(WIFI_IF_STA, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) { interface = WIFI_IF_STA; return true; }
+        if (esp_wifi_get_mac(WIFI_IF_AP, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) { interface = WIFI_IF_AP; return true; }
         return false;
     }
 
     bool FindPeerInterfaceHint(const MacAddress& address, wifi_interface_t& interface) const {
         std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
-        for (const auto& hint : _peerInterfaceHints) {
-            if (hint.Used && hint.Address == address) { interface = hint.Interface; return true; }
-        }
+        for (const auto& hint : _peerInterfaceHints) if (hint.Used && hint.Address == address) { interface = hint.Interface; return true; }
         return false;
     }
 
     bool IsManagedPeerAuto(const MacAddress& address) const {
         std::lock_guard<std::mutex> lock(_managedPeerMutex);
-        for (const auto& record : _managedPeers) {
-            if (record.Used && record.Config.Address == address)
-                return record.Config.Interface == ESPNowWiFiInterface::Auto;
-        }
+        for (const auto& record : _managedPeers) if (record.Used && record.Config.Address == address) return record.Config.Interface == ESPNowWiFiInterface::Auto;
         return false;
     }
 
@@ -291,14 +276,10 @@ private:
             PeerInterfaceHint* freeHint = nullptr;
             bool updated = false;
             for (auto& hint : _peerInterfaceHints) {
-                if (hint.Used && hint.Address == address) {
-                    hint.Interface = interface; updated = true; break;
-                }
+                if (hint.Used && hint.Address == address) { hint.Interface = interface; updated = true; break; }
                 if (!hint.Used && freeHint == nullptr) freeHint = &hint;
             }
-            if (!updated && freeHint != nullptr) {
-                freeHint->Used = true; freeHint->Address = address; freeHint->Interface = interface;
-            }
+            if (!updated && freeHint != nullptr) { freeHint->Used = true; freeHint->Address = address; freeHint->Interface = interface; }
         }
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
         if (esp_now_is_peer_exist(address.Bytes)) {
@@ -312,9 +293,7 @@ private:
 
     void ClearPeerInterfaceHint(const MacAddress& address) {
         std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
-        for (auto& hint : _peerInterfaceHints) {
-            if (hint.Used && hint.Address == address) { hint = PeerInterfaceHint{}; return; }
-        }
+        for (auto& hint : _peerInterfaceHints) if (hint.Used && hint.Address == address) { hint = PeerInterfaceHint{}; return; }
     }
 
     void ClearPeerInterfaceHints() {
@@ -323,30 +302,19 @@ private:
     }
 
     ManagedPeerRecord* FindManagedPeerLocked(const MacAddress& address) {
-        for (auto& record : _managedPeers)
-            if (record.Used && record.Config.Address == address) return &record;
+        for (auto& record : _managedPeers) if (record.Used && record.Config.Address == address) return &record;
         return nullptr;
     }
 
     const ManagedPeerRecord* FindManagedPeerLocked(const MacAddress& address) const {
-        for (const auto& record : _managedPeers)
-            if (record.Used && record.Config.Address == address) return &record;
+        for (const auto& record : _managedPeers) if (record.Used && record.Config.Address == address) return &record;
         return nullptr;
     }
 
     bool StoreManagedPeer(const ESPNowPeerConfig& config) {
         std::lock_guard<std::mutex> lock(_managedPeerMutex);
-        if (auto* existing = FindManagedPeerLocked(config.Address)) {
-            existing->Config = config;
-            return true;
-        }
-        for (auto& record : _managedPeers) {
-            if (!record.Used) {
-                record.Used = true;
-                record.Config = config;
-                return true;
-            }
-        }
+        if (auto* existing = FindManagedPeerLocked(config.Address)) { existing->Config = config; return true; }
+        for (auto& record : _managedPeers) if (!record.Used) { record.Used = true; record.Config = config; return true; }
         return false;
     }
 
@@ -358,21 +326,22 @@ private:
     std::size_t CopyManagedPeerConfigs(std::array<ESPNowPeerConfig, ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS>& configs) const {
         std::lock_guard<std::mutex> lock(_managedPeerMutex);
         std::size_t count = 0;
-        for (const auto& record : _managedPeers) {
-            if (record.Used && count < configs.size()) configs[count++] = record.Config;
-        }
+        for (const auto& record : _managedPeers) if (record.Used && count < configs.size()) configs[count++] = record.Config;
         return count;
     }
 
     bool ProgramPeerNativeLocked(const ESPNowPeerConfig& config, bool notifyAdded) {
+        const bool existed = esp_now_is_peer_exist(config.Address.Bytes);
         esp_now_peer_info_t peer{};
+        if (existed && esp_now_get_peer(config.Address.Bytes, &peer) != ESP_OK) return false;
+
         std::memcpy(peer.peer_addr, config.Address.Bytes, MacAddressLength);
         peer.channel = config.Channel;
         peer.ifidx = ResolvePeerInterface(config);
         peer.encrypt = config.Encrypt;
         if (config.Encrypt) std::memcpy(peer.lmk, config.LocalMasterKey, sizeof(peer.lmk));
+        else std::memset(peer.lmk, 0, sizeof(peer.lmk));
 
-        const bool existed = esp_now_is_peer_exist(config.Address.Bytes);
         const esp_err_t result = existed ? esp_now_mod_peer(&peer) : esp_now_add_peer(&peer);
         if (result != ESP_OK) return false;
         if (notifyAdded && !existed) _observable->PeerAdded(config.Address);
@@ -383,19 +352,15 @@ private:
         std::array<ESPNowPeerConfig, ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS> configs{};
         const std::size_t count = CopyManagedPeerConfigs(configs);
         bool success = true;
-        for (std::size_t index = 0; index < count; ++index) {
-            if (!ProgramPeerNativeLocked(configs[index], false)) success = false;
-        }
+        for (std::size_t index = 0; index < count; ++index) if (!ProgramPeerNativeLocked(configs[index], false)) success = false;
         return success;
     }
 
     bool ReinitializeNativeStateLocked() {
         if (!GetIsInitialized()) return false;
-
         CallbackInstance() = nullptr;
         esp_now_unregister_recv_cb();
         esp_now_deinit();
-
         if (esp_now_init() != ESP_OK) return false;
         CallbackInstance() = this;
         if (esp_now_register_recv_cb(ReceiveCallback) != ESP_OK) {
@@ -411,9 +376,7 @@ private:
         WireHeader header;
         std::memcpy(&header, frame.Data, sizeof(header));
         if (header.Magic != FrameMagic || header.Version != FrameVersion) return;
-        if (header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) ||
-            sizeof(WireHeader) + header.PayloadLength > frame.Length) return;
-
+        if (header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) || sizeof(WireHeader) + header.PayloadLength > frame.Length) return;
         ESPNowReceivedFrame received;
         received.Source = frame.Source;
         received.ReceiveMonotonicNanoseconds = frame.ReceiveMonotonicNanoseconds;
@@ -421,45 +384,31 @@ private:
         received.PayloadLength = header.PayloadLength;
         if (header.PayloadLength > 0) std::memcpy(received.Payload, frame.Data + sizeof(WireHeader), header.PayloadLength);
         if (frame.HasLocalInterface) RememberPeerInterface(received.Source, frame.LocalInterface);
-
-        _observable->FrameReceived(received.Source, received.Protocol, received.PayloadLength,
-            received.ReceiveMonotonicNanoseconds);
-
+        _observable->FrameReceived(received.Source, received.Protocol, received.PayloadLength, received.ReceiveMonotonicNanoseconds);
         ProtocolHandler handler;
         {
             std::lock_guard<std::mutex> lock(_handlerMutex);
-            for (const auto& record : _handlers) {
-                if (record.Handler && record.Protocol == header.Protocol) { handler = record.Handler; break; }
-            }
+            for (const auto& record : _handlers) if (record.Handler && record.Protocol == header.Protocol) { handler = record.Handler; break; }
         }
         if (handler) handler(received);
     }
 
     void ProcessWorkerIteration() {
         CallbackFrame frame;
-        while (_receiveQueue != nullptr && xQueueReceive(_receiveQueue, &frame, 0) == pdTRUE) {
-            ProcessCallbackFrame(frame);
-        }
-
+        while (_receiveQueue != nullptr && xQueueReceive(_receiveQueue, &frame, 0) == pdTRUE) ProcessCallbackFrame(frame);
         std::array<MaintenanceHandler, ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS> handlers{};
         {
             std::lock_guard<std::mutex> lock(_maintenanceMutex);
             std::size_t index = 0;
-            for (const auto& record : _maintenanceHandlers) {
-                if (record.Owner != nullptr && record.Handler && index < handlers.size()) {
-                    handlers[index++] = record.Handler;
-                }
-            }
+            for (const auto& record : _maintenanceHandlers) if (record.Owner != nullptr && record.Handler && index < handlers.size()) handlers[index++] = record.Handler;
         }
         const uint64_t nowMilliseconds = GetRawMonotonicNanoseconds() / 1000000ULL;
         for (auto& handler : handlers) if (handler) handler(nowMilliseconds);
     }
 
-    static void QueueReceivedData(const uint8_t* source, const uint8_t* destination,
-                                  const uint8_t* data, int length) {
+    static void QueueReceivedData(const uint8_t* source, const uint8_t* destination, const uint8_t* data, int length) {
         ESPNowTransport* self = CallbackInstance();
-        if (self == nullptr || !self->_initialized.load(std::memory_order_acquire) ||
-            self->_receiveQueue == nullptr || source == nullptr || data == nullptr || length <= 0) return;
+        if (self == nullptr || !self->_initialized.load(std::memory_order_acquire) || self->_receiveQueue == nullptr || source == nullptr || data == nullptr || length <= 0) return;
         CallbackFrame frame;
         frame.Source = MacAddress(source);
         frame.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
@@ -471,13 +420,10 @@ private:
 
 #if ESP_IDF_VERSION_MAJOR >= 5
     static void ReceiveCallback(const esp_now_recv_info_t* info, const uint8_t* data, int length) {
-        QueueReceivedData(info == nullptr ? nullptr : info->src_addr,
-                          info == nullptr ? nullptr : info->des_addr, data, length);
+        QueueReceivedData(info == nullptr ? nullptr : info->src_addr, info == nullptr ? nullptr : info->des_addr, data, length);
     }
 #else
-    static void ReceiveCallback(const uint8_t* source, const uint8_t* data, int length) {
-        QueueReceivedData(source, nullptr, data, length);
-    }
+    static void ReceiveCallback(const uint8_t* source, const uint8_t* data, int length) { QueueReceivedData(source, nullptr, data, length); }
 #endif
 
     void CleanupFailedInitialization() {
@@ -485,14 +431,8 @@ private:
         CallbackInstance() = nullptr;
         esp_now_unregister_recv_cb();
         esp_now_deinit();
-        if (_worker) {
-            _worker->Shutdown();
-            _worker.reset();
-        }
-        if (_receiveQueue != nullptr) {
-            vQueueDelete(_receiveQueue);
-            _receiveQueue = nullptr;
-        }
+        if (_worker) { _worker->Shutdown(); _worker.reset(); }
+        if (_receiveQueue != nullptr) { vQueueDelete(_receiveQueue); _receiveQueue = nullptr; }
         _initialized.store(false, std::memory_order_release);
     }
 
@@ -500,50 +440,29 @@ public:
     ESPNowTransport(const ESPNowTransport&) = delete;
     ESPNowTransport& operator=(const ESPNowTransport&) = delete;
 
-    static ESPNowTransport& GetInstance() {
-        static ESPNowTransport instance;
-        return instance;
-    }
+    static ESPNowTransport& GetInstance() { static ESPNowTransport instance; return instance; }
 
-    Observable::ObserverHandlePtr RegisterObserver(IESPNowTransportObserver* observer) {
-        return _observable->RegisterObserver(observer);
-    }
+    Observable::ObserverHandlePtr RegisterObserver(IESPNowTransportObserver* observer) { return _observable->RegisterObserver(observer); }
     void UnregisterObserver(IESPNowTransportObserver* observer) { _observable->UnregisterObserver(observer); }
 
     bool Initialize(const ESPNowTransportConfig& config = ESPNowTransportConfig()) {
         if (_initialized.load(std::memory_order_acquire)) return true;
         _config = config;
-        if (_config.WorkerIterationIntervalMilliseconds == 0 || _config.ReceiveQueueLength == 0) {
-            _observable->InitializationFailed(); return false;
-        }
+        if (_config.WorkerIterationIntervalMilliseconds == 0 || _config.ReceiveQueueLength == 0) { _observable->InitializationFailed(); return false; }
         if (_config.InitializeWiFi) ::WiFi.mode(WIFI_STA);
-        if (_config.Channel != 0 && esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-            _observable->InitializationFailed(); return false;
-        }
-
+        if (_config.Channel != 0 && esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) { _observable->InitializationFailed(); return false; }
         _receiveQueue = xQueueCreate(_config.ReceiveQueueLength, sizeof(CallbackFrame));
         if (_receiveQueue == nullptr) { _observable->InitializationFailed(); return false; }
-
         _worker = std::make_unique<TransportWorker>(*this);
         _worker->Configure(_config);
         const auto workerInit = _worker->Initialize();
-        if (workerInit != Threads::ThreadInitializationStatus::Success &&
-            workerInit != Threads::ThreadInitializationStatus::AlreadyInitialized) {
-            CleanupFailedInitialization(); _observable->InitializationFailed(); return false;
-        }
-
+        if (workerInit != Threads::ThreadInitializationStatus::Success && workerInit != Threads::ThreadInitializationStatus::AlreadyInitialized) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
         {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-            if (esp_now_init() != ESP_OK) {
-                CleanupFailedInitialization(); _observable->InitializationFailed(); return false;
-            }
-
+            if (esp_now_init() != ESP_OK) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
             CallbackInstance() = this;
-            if (esp_now_register_recv_cb(ReceiveCallback) != ESP_OK) {
-                CleanupFailedInitialization(); _observable->InitializationFailed(); return false;
-            }
+            if (esp_now_register_recv_cb(ReceiveCallback) != ESP_OK) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
         }
-
         _lastSendFailure.store(ESPNowSendFailure::None);
         _lastSendNativeError.store(0);
         {
@@ -553,13 +472,8 @@ public:
             _radioBinding.PreferredInterface = ESPNowWiFiInterface::Auto;
         }
         _initialized.store(true, std::memory_order_release);
-
         const auto workerStart = _worker->Start();
-        if (workerStart != Threads::ThreadInitializationStatus::Success &&
-            workerStart != Threads::ThreadInitializationStatus::AlreadyInitialized) {
-            CleanupFailedInitialization(); _observable->InitializationFailed(); return false;
-        }
-
+        if (workerStart != Threads::ThreadInitializationStatus::Success && workerStart != Threads::ThreadInitializationStatus::AlreadyInitialized) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
         _observable->Initialized();
         return true;
     }
@@ -572,47 +486,19 @@ public:
             CallbackInstance() = nullptr;
             esp_now_deinit();
         }
-        if (_worker) {
-            _worker->Shutdown();
-            _worker.reset();
-        }
-        if (_receiveQueue != nullptr) {
-            vQueueDelete(_receiveQueue);
-            _receiveQueue = nullptr;
-        }
-        {
-            std::lock_guard<std::mutex> lock(_handlerMutex);
-            for (auto& record : _handlers) record = HandlerRecord{};
-        }
-        {
-            std::lock_guard<std::mutex> lock(_maintenanceMutex);
-            for (auto& record : _maintenanceHandlers) record = MaintenanceRecord{};
-        }
-        {
-            std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
-            for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{};
-        }
-        {
-            std::lock_guard<std::mutex> lock(_managedPeerMutex);
-            for (auto& record : _managedPeers) record = ManagedPeerRecord{};
-        }
-        {
-            std::lock_guard<std::mutex> lock(_radioBindingMutex);
-            _radioBinding = ESPNowRadioBinding{};
-            _radioBinding.Available = false;
-        }
+        if (_worker) { _worker->Shutdown(); _worker.reset(); }
+        if (_receiveQueue != nullptr) { vQueueDelete(_receiveQueue); _receiveQueue = nullptr; }
+        { std::lock_guard<std::mutex> lock(_handlerMutex); for (auto& record : _handlers) record = HandlerRecord{}; }
+        { std::lock_guard<std::mutex> lock(_maintenanceMutex); for (auto& record : _maintenanceHandlers) record = MaintenanceRecord{}; }
+        { std::lock_guard<std::mutex> lock(_peerInterfaceMutex); for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{}; }
+        { std::lock_guard<std::mutex> lock(_managedPeerMutex); for (auto& record : _managedPeers) record = ManagedPeerRecord{}; }
+        { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = ESPNowRadioBinding{}; _radioBinding.Available = false; }
         _observable->Shutdown();
     }
 
     bool GetIsInitialized() const { return _initialized.load(std::memory_order_acquire); }
-
-    uint32_t GetReceiveTaskMinimumFreeStackBytes() const {
-        return _worker ? _worker->MinimumFreeStackBytes() : 0;
-    }
-
-    uint32_t GetWorkerIterationIntervalMilliseconds() const noexcept {
-        return _config.WorkerIterationIntervalMilliseconds;
-    }
+    uint32_t GetReceiveTaskMinimumFreeStackBytes() const { return _worker ? _worker->MinimumFreeStackBytes() : 0; }
+    uint32_t GetWorkerIterationIntervalMilliseconds() const noexcept { return _config.WorkerIterationIntervalMilliseconds; }
 
     ESPNowSendResult GetLastSendResult() const noexcept {
         ESPNowSendResult result;
@@ -628,22 +514,13 @@ public:
         wifi_interface_t native = WIFI_IF_STA;
         if (interface == ESPNowWiFiInterface::Auto) {
             const auto binding = RadioBindingSnapshot();
-            native = binding.PreferredInterface == ESPNowWiFiInterface::AccessPoint
-                ? WIFI_IF_AP
-                : binding.PreferredInterface == ESPNowWiFiInterface::Station
-                    ? WIFI_IF_STA
-                    : CurrentDefaultInterface();
+            native = binding.PreferredInterface == ESPNowWiFiInterface::AccessPoint ? WIFI_IF_AP : binding.PreferredInterface == ESPNowWiFiInterface::Station ? WIFI_IF_STA : CurrentDefaultInterface();
         } else native = ExplicitInterface(interface);
-
         uint8_t address[MacAddressLength] = {};
         return esp_wifi_get_mac(native, address) == ESP_OK ? MacAddress(address) : MacAddress{};
     }
 
-    bool SetRadioAvailable(bool available) {
-        std::lock_guard<std::mutex> lock(_radioBindingMutex);
-        _radioBinding.Available = available;
-        return true;
-    }
+    bool SetRadioAvailable(bool available) { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding.Available = available; return true; }
 
     bool ReconcileManagedPeers() {
         if (!GetIsInitialized()) return false;
@@ -661,77 +538,42 @@ public:
 
     bool ApplyRadioBinding(const ESPNowRadioBinding& binding, bool reinitializeNativeState = false) {
         if (!GetIsInitialized()) return false;
-        {
-            std::lock_guard<std::mutex> lock(_radioBindingMutex);
-            _radioBinding = binding;
-            _radioBinding.Available = false;
-        }
+        { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = binding; _radioBinding.Available = false; }
         ClearPeerInterfaceHints();
-
         bool success = false;
         {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-            success = reinitializeNativeState
-                ? ReinitializeNativeStateLocked()
-                : ReconcileManagedPeersLocked();
+            success = reinitializeNativeState ? ReinitializeNativeStateLocked() : ReconcileManagedPeersLocked();
         }
-
-        {
-            std::lock_guard<std::mutex> lock(_radioBindingMutex);
-            _radioBinding = binding;
-            _radioBinding.Available = binding.Available && success;
-        }
+        { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = binding; _radioBinding.Available = binding.Available && success; }
         return success;
     }
 
     bool RegisterProtocolHandler(uint8_t protocol, ProtocolHandler handler) {
         if (!handler) return false;
         std::lock_guard<std::mutex> lock(_handlerMutex);
-        for (auto& record : _handlers) {
-            if (record.Handler && record.Protocol == protocol) { record.Handler = std::move(handler); return true; }
-        }
-        for (auto& record : _handlers) {
-            if (!record.Handler) { record.Protocol = protocol; record.Handler = std::move(handler); return true; }
-        }
+        for (auto& record : _handlers) if (record.Handler && record.Protocol == protocol) { record.Handler = std::move(handler); return true; }
+        for (auto& record : _handlers) if (!record.Handler) { record.Protocol = protocol; record.Handler = std::move(handler); return true; }
         return false;
     }
 
-    void UnregisterProtocolHandler(uint8_t protocol) {
-        std::lock_guard<std::mutex> lock(_handlerMutex);
-        for (auto& record : _handlers) {
-            if (record.Handler && record.Protocol == protocol) { record = HandlerRecord{}; return; }
-        }
-    }
+    void UnregisterProtocolHandler(uint8_t protocol) { std::lock_guard<std::mutex> lock(_handlerMutex); for (auto& record : _handlers) if (record.Handler && record.Protocol == protocol) { record = HandlerRecord{}; return; } }
 
     bool RegisterMaintenanceHandler(const void* owner, MaintenanceHandler handler) {
         if (owner == nullptr || !handler) return false;
         std::lock_guard<std::mutex> lock(_maintenanceMutex);
-        for (auto& record : _maintenanceHandlers) {
-            if (record.Owner == owner) { record.Handler = std::move(handler); return true; }
-        }
-        for (auto& record : _maintenanceHandlers) {
-            if (record.Owner == nullptr) { record.Owner = owner; record.Handler = std::move(handler); return true; }
-        }
+        for (auto& record : _maintenanceHandlers) if (record.Owner == owner) { record.Handler = std::move(handler); return true; }
+        for (auto& record : _maintenanceHandlers) if (record.Owner == nullptr) { record.Owner = owner; record.Handler = std::move(handler); return true; }
         return false;
     }
 
-    void UnregisterMaintenanceHandler(const void* owner) {
-        if (owner == nullptr) return;
-        std::lock_guard<std::mutex> lock(_maintenanceMutex);
-        for (auto& record : _maintenanceHandlers) {
-            if (record.Owner == owner) { record = MaintenanceRecord{}; return; }
-        }
-    }
+    void UnregisterMaintenanceHandler(const void* owner) { if (owner == nullptr) return; std::lock_guard<std::mutex> lock(_maintenanceMutex); for (auto& record : _maintenanceHandlers) if (record.Owner == owner) { record = MaintenanceRecord{}; return; } }
 
     bool AddPeer(const ESPNowPeerConfig& config) {
         if (!GetIsInitialized() || config.Address.IsZero()) return false;
         if (!StoreManagedPeer(config)) return false;
-
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-        if (!ProgramPeerNativeLocked(config, true)) {
-            ForgetManagedPeer(config.Address);
-            return false;
-        }
+        if (!ProgramPeerNativeLocked(config, true)) { ForgetManagedPeer(config.Address); return false; }
         return true;
     }
 
@@ -741,39 +583,25 @@ public:
         const bool existed = esp_now_is_peer_exist(address.Bytes);
         const esp_err_t result = esp_now_del_peer(address.Bytes);
         const bool success = result == ESP_OK || result == ESP_ERR_ESPNOW_NOT_FOUND;
-        if (success) {
-            ClearPeerInterfaceHint(address);
-            ForgetManagedPeer(address);
-        }
+        if (success) { ClearPeerInterfaceHint(address); ForgetManagedPeer(address); }
         if (success && existed) _observable->PeerRemoved(address);
         return success;
     }
 
-    ESPNowSendResult SendDetailed(const MacAddress& destination, uint8_t protocol,
-                                  const void* payload, std::size_t payloadLength) {
+    ESPNowSendResult SendDetailed(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) {
         ESPNowSendResult result;
-        if (!GetIsInitialized()) {
-            result.Failure = ESPNowSendFailure::NotInitialized;
-            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT);
-        } else if (!RadioBindingSnapshot().Available) {
-            result.Failure = ESPNowSendFailure::RadioUnavailable;
-            result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE);
-        } else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) {
-            result.Failure = ESPNowSendFailure::InvalidArgument;
-            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG);
-        } else {
+        if (!GetIsInitialized()) { result.Failure = ESPNowSendFailure::NotInitialized; result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT); }
+        else if (!RadioBindingSnapshot().Available) { result.Failure = ESPNowSendFailure::RadioUnavailable; result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE); }
+        else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) { result.Failure = ESPNowSendFailure::InvalidArgument; result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG); }
+        else {
             uint8_t frame[MaximumFrameSize] = {0};
             WireHeader header;
             header.Protocol = protocol;
             header.PayloadLength = static_cast<uint16_t>(payloadLength);
             std::memcpy(frame, &header, sizeof(header));
             if (payload != nullptr && payloadLength > 0) std::memcpy(frame + sizeof(header), payload, payloadLength);
-
             esp_err_t native = ESP_FAIL;
-            {
-                std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-                native = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength);
-            }
+            { std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex); native = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength); }
             result.Success = native == ESP_OK;
             result.NativeError = static_cast<int32_t>(native);
             result.Failure = ClassifySendFailure(native);
@@ -785,10 +613,7 @@ public:
         return result;
     }
 
-    bool Send(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) {
-        return SendDetailed(destination, protocol, payload, payloadLength).Success;
-    }
-
+    bool Send(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) { return SendDetailed(destination, protocol, payload, payloadLength).Success; }
     uint64_t GetMonotonicTimestampNanoseconds() const { return GetRawMonotonicNanoseconds(); }
 };
 
