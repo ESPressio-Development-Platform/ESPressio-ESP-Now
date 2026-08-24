@@ -44,6 +44,44 @@ namespace ESPressio {
         };
 
 
+        /*
+         * Interface used by the local ESP32 when transmitting to a peer.
+         * Auto learns the interface on which a peer was most recently heard
+         * (ESP-IDF v5+) and otherwise falls back to the currently enabled WiFi
+         * mode. This is important when ESP-NOW shares the radio with SoftAP or
+         * AP+STA / APUntilClient operation.
+         */
+        enum class ESPNowWiFiInterface : uint8_t {
+            Auto = 0,
+            Station = 1,
+            AccessPoint = 2
+        };
+
+
+        enum class ESPNowSendFailure : uint8_t {
+            None = 0,
+            NotInitialized,
+            InvalidArgument,
+            NoMemory,
+            PeerNotFound,
+            InterfaceMismatch,
+            ChannelMismatch,
+            Internal,
+            Unknown
+        };
+
+
+        struct ESPNowSendResult {
+            bool Success = false;
+            ESPNowSendFailure Failure = ESPNowSendFailure::Unknown;
+            int32_t NativeError = 0;
+
+            explicit operator bool() const noexcept {
+                return Success;
+            }
+        };
+
+
         struct MacAddress {
             uint8_t Bytes[
                 MacAddressLength
@@ -113,6 +151,7 @@ namespace ESPressio {
         struct ESPNowPeerConfig {
             MacAddress Address;
             uint8_t Channel = 0;
+            ESPNowWiFiInterface Interface = ESPNowWiFiInterface::Auto;
             bool Encrypt = false;
             uint8_t LocalMasterKey[16] = {0};
         };
