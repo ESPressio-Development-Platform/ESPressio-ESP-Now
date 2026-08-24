@@ -13,6 +13,11 @@ jobs:
           path: project/ESPressio-ESP-Now
       - uses: actions/checkout@v4
         with:
+          repository: ESPressio-Development-Platform/ESPressio-WiFi
+          ref: feature/20-wifi-off-mode
+          path: project/dependencies/ESPressio-WiFi
+      - uses: actions/checkout@v4
+        with:
           repository: ESPressio-Development-Platform/ESPressio-Timing
           ref: 2.2.8
           path: project/dependencies/ESPressio-Timing
@@ -31,11 +36,16 @@ jobs:
           repository: ESPressio-Development-Platform/ESPressio-Threads
           ref: 3.1.7
           path: project/dependencies/ESPressio-Threads
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Serializable
+          ref: 0.11.3
+          path: project/dependencies/ESPressio-Serializable
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - run: pip install platformio
-      - name: Create AP+STA coexistence consumer
+      - name: Create coordinated AP+STA coexistence consumer
         shell: bash
         run: |
           mkdir -p project/compile/src
@@ -52,13 +62,17 @@ jobs:
               ../dependencies/ESPressio-Units
               ../dependencies/ESPressio-Timing
               ../dependencies/ESPressio-Threads
+              ../dependencies/ESPressio-Serializable
+              ../dependencies/ESPressio-WiFi
               ../ESPressio-ESP-Now
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
-          #include <WiFi.h>
           #include <ESPressio_ThreadManager.hpp>
+          #include <ESPressio_ESP32WiFi.hpp>
+          #include <ESPressio_WiFiWorker.hpp>
           #include <ESPressio_ESPNow.hpp>
+          #include <ESPressio_ESPNowWiFiCoordinator.hpp>
 
           class Observer final : public ESPressio::ESPNow::IESPNowTransportObserver {
           public:
@@ -71,10 +85,22 @@ jobs:
               ) override {}
           } observer;
 
+          ESPressio::WiFi::ESP32WiFiPlatform wifiPlatform;
+          ESPressio::WiFi::WiFiManager wifiManager(wifiPlatform);
+          ESPressio::WiFi::WiFiWorker wifiWorker(wifiManager);
+
           void setup() {
+              ESPressio::WiFi::WiFiConfiguration wifiConfig;
+              wifiConfig.Mode = ESPressio::WiFi::WiFiMode::APUntilClient;
+              wifiConfig.Client.Enabled = true;
+              wifiConfig.AccessPoint.Enabled = true;
+              wifiConfig.AccessPoint.SSID = "espnow-coexistence-test";
+              wifiConfig.AccessPoint.Channel = 1;
+              wifiManager.Configure(wifiConfig);
+
               ESPressio::Threads::ThreadManager::GetInstance()->Initialize();
-              ::WiFi.mode(WIFI_AP_STA);
-              ::WiFi.softAP("espnow-coexistence-test");
+              wifiWorker.Start();
+
               ESPressio::ESPNow::ESPNowTransportConfig transportConfig;
               transportConfig.InitializeWiFi = false;
               transportConfig.Channel = 0;
@@ -83,12 +109,17 @@ jobs:
               transport.RegisterObserver(&observer);
               transport.Initialize(transportConfig);
 
+              ESPressio::ESPNow::ESPNowWiFiCoordinator coordinator(transport, wifiManager);
+              coordinator.Initialize();
+
               ESPressio::ESPNow::ESPNowPeerConfig peer;
               const uint8_t address[6] = {0x02,0,0,0,0,1};
               peer.Address = ESPressio::ESPNow::MacAddress(address);
               peer.Channel = 0;
               peer.Interface = ESPressio::ESPNow::ESPNowWiFiInterface::Auto;
               (void)transport.AddPeer(peer);
+              (void)transport.ReconcileManagedPeers();
+              (void)transport.GetLocalEndpointAddress();
               (void)transport.SendDetailed(peer.Address, 64, nullptr, 0);
               (void)transport.GetLastSendResult();
           }
@@ -106,8 +137,12 @@ jobs:
         run: |
           grep -q 'Current Version — 0.8.3' README.md
           grep -q 'ESPNowWiFiInterface' src/ESPressio_ESPNowTypes.hpp
+          grep -q 'ESPNowRadioBinding' src/ESPressio_ESPNowTypes.hpp
+          grep -q 'RadioUnavailable' src/ESPressio_ESPNowTypes.hpp
           grep -q 'SendDetailed' src/ESPressio_ESPNowTransport.hpp
-          grep -q 'Wi-Fi and ESP-NOW coexistence' README.md
+          grep -q 'ReconcileManagedPeers' src/ESPressio_ESPNowTransport.hpp
+          grep -q 'ReinitializeNativeState' src/ESPressio_ESPNowTransport.hpp
+          grep -q 'ESPNowWiFiCoordinator' src/ESPressio_ESPNowWiFiCoordinator.hpp
           grep -q 'WorkerIterationIntervalMilliseconds' src/ESPressio_ESPNowTypes.hpp
           grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp
           if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then
