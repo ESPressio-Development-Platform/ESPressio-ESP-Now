@@ -2,16 +2,16 @@
 
 ESP-NOW transport and distributed ESPressio implementations for the ESPressio Development Platform.
 
-## Current Version — 0.8.2
+## Current Version — 0.8.3
 
-ESPressio ESP-Now **0.8.2** is a dependency-maintenance release aligning the hardened 0.8 generation with the corrected Serializable 0.11.2 cascade. The 8192-byte receive-task default and `GetReceiveTaskMinimumFreeStackBytes()` diagnostics introduced in 0.8.0 remain unchanged, as do ESP-NOW wire framing and protocol identifiers.
+ESPressio ESP-Now **0.8.3** is a dependency-maintenance release aligning the hardened 0.8 generation with the released Serializable 0.11.3 cascade. The 8192-byte receive-task default and `GetReceiveTaskMinimumFreeStackBytes()` diagnostics introduced in 0.8.0 remain unchanged, as do ESP-NOW wire framing and protocol identifiers.
 
 ## Dependencies
 
 Required:
 
 ```text
-ESPressio Timing >= 2.2.7 < 3.0.0
+ESPressio Timing >= 2.2.8 < 3.0.0
 ESPressio Observable >= 3.0.2 < 4.0.0
 Arduino-ESP32
 ```
@@ -19,9 +19,9 @@ Arduino-ESP32
 Optional integrations:
 
 ```text
-ESPressio Event >= 6.0.2 < 7.0.0
-ESPressio Command >= 1.0.2 < 2.0.0
-ESPressio Security >= 0.4.1 < 1.0.0
+ESPressio Event >= 6.0.3 < 7.0.0
+ESPressio Command >= 1.0.3 < 2.0.0
+ESPressio Security >= 0.4.2 < 1.0.0
 ```
 
 The normal `ESPressio_ESPNow.hpp` umbrella remains free of Event, Command and Security includes.
@@ -30,8 +30,8 @@ The normal `ESPressio_ESPNow.hpp` umbrella remains free of Event, Command and Se
 
 ```ini
 lib_deps =
-    espressio-development-platform/ESPressio-ESP-Now@^0.8.2
-    espressio-development-platform/ESPressio-Timing@^2.2.7
+    espressio-development-platform/ESPressio-ESP-Now@^0.8.3
+    espressio-development-platform/ESPressio-Timing@^2.2.8
     espressio-development-platform/ESPressio-Observable@^3.0.2
 ```
 
@@ -54,7 +54,7 @@ const uint32_t minimumFreeBytes = transport.GetReceiveTaskMinimumFreeStackBytes(
 
 ## Clock synchronization
 
-`ESPNowClockSynchronizer` transports ESPressio Timing synchronization exchanges over ESP-NOW. Timing remains responsible for sample validation, estimation and SystemClock discipline. ESP-Now 0.8.2 validates this surface against Timing 2.2.7.
+`ESPNowClockSynchronizer` transports ESPressio Timing synchronization exchanges over ESP-NOW. Timing remains responsible for sample validation, estimation and SystemClock discipline. ESP-Now 0.8.3 validates this surface against Timing 2.2.8.
 
 ## Event integration
 
@@ -64,7 +64,7 @@ const uint32_t minimumFreeBytes = transport.GetReceiveTaskMinimumFreeStackBytes(
 #include <ESPressio_ESPNowTransportEventBridge.hpp>
 ```
 
-Event integration remains opt-in and is validated against Event 6.0.2. ESP-Now continues to own its concrete Event transport and the Event representation of ESP-Now lifecycle observations, preserving the one-way dependency `ESP-Now -> Event`.
+Event integration remains opt-in and is validated against Event 6.0.3. ESP-Now continues to own its concrete Event transport and the Event representation of ESP-Now lifecycle observations, preserving the one-way dependency `ESP-Now -> Event`.
 
 ## Command integration
 
@@ -72,7 +72,7 @@ Event integration remains opt-in and is validated against Event 6.0.2. ESP-Now c
 #include <ESPressio_ESPNowCommandTransport.hpp>
 ```
 
-Command integration remains opt-in and is validated against Command 1.0.2. ESP-Now Command protocol v1 remains wire-compatible: scalar `CommandValue` instances are normalized at the existing string-valued wire boundary and reconstructed as compatible invocation values on receive.
+Command integration remains opt-in and is validated against Command 1.0.3. ESP-Now Command protocol v1 remains wire-compatible: scalar `CommandValue` instances are normalized at the existing string-valued wire boundary and reconstructed as compatible invocation values on receive.
 
 ## Security integration
 
@@ -80,30 +80,30 @@ Command integration remains opt-in and is validated against Command 1.0.2. ESP-N
 #include <ESPressio_ESPNowSecureTransport.hpp>
 ```
 
-Security integration remains opt-in and is validated against Security 0.4.1. `ESPNowSecureTransport` owns ESP-NOW-specific framing/fragmentation while ESPressio Security owns authenticated encryption, sender/session identity, protocol binding and replay protection.
+Security integration remains opt-in and is validated against Security 0.4.2. `ESPNowSecureTransport` owns ESP-NOW-specific framing/fragmentation while ESPressio Security owns authenticated encryption, sender/session identity, protocol binding and replay protection.
 
 ## Observable lifecycle
 
 `IESPNowTransportObserver` remains the synchronous lifecycle surface for initialization, shutdown, peers, sends and validated inbound ESPressio frames. `ESPNowTransportEventBridge` optionally converts those observations into asynchronous Events.
 
-## Corrected cascade generation
+## Serializable 0.11.3 cascade generation
 
 ```text
 Observable    3.0.2
-Serializable  0.11.2
-Units         0.2.6
-Timing        2.2.7
-Threads       3.1.6
-Event         6.0.2
-Command       1.0.2
-Security      0.4.1
-Persistence   0.3.1
-Sockets       0.7.2
-ESP-Now       0.8.2
+Serializable  0.11.3
+Units         0.2.7
+Timing        2.2.8
+Threads       3.1.7
+Event         6.0.3
+Command       1.0.3
+Security      0.4.2
+Persistence   0.3.2
+Sockets       0.7.3
+ESP-Now       0.8.3
 ```
 
 ## Compatibility
 
-No public ESP-Now API or runtime behaviour changes are introduced in 0.8.2. Wire framing, protocol IDs, peer management, clock synchronization, Event Transport, Command protocol-v1, Security transport, peer-liveness semantics and receive-task execution semantics are unchanged.
+No public ESP-Now API or runtime behaviour changes are introduced in 0.8.3. Wire framing, protocol IDs, peer management, clock synchronization, Event Transport, Command protocol-v1, Security transport, peer-liveness semantics and receive-task execution semantics are unchanged.
 
 See [COMMAND_INTEGRATION.md](COMMAND_INTEGRATION.md), [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md), [ESPRESSIO_DEPENDENCY_CHART.md](ESPRESSIO_DEPENDENCY_CHART.md), and [CHANGELOG.md](CHANGELOG.md) for further details.
