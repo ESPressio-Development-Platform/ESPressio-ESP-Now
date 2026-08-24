@@ -520,6 +520,18 @@ namespace ESPressio {
                         std::memory_order_release
                     );
 
+                    /*
+                     * Rate-limit synchronization attempts, not only successful
+                     * sends. ESP-IDF explicitly permits transient send
+                     * rejection such as ESP_ERR_ESPNOW_NO_MEM; leaving this
+                     * timestamp at zero would make Update() retry on every
+                     * ESP-NOW worker iteration and turn resource pressure into
+                     * a tight retry storm.
+                     */
+                    _lastRequestMonotonicNanoseconds =
+                        _transport->
+                            GetMonotonicTimestampNanoseconds();
+
                     const bool sent =
                         _transport->Send(
                             _config.ReferencePeer,
@@ -531,11 +543,7 @@ namespace ESPressio {
                             sizeof(request)
                         );
 
-                    if (sent) {
-                        _lastRequestMonotonicNanoseconds =
-                            _transport->
-                                GetMonotonicTimestampNanoseconds();
-                    } else {
+                    if (!sent) {
                         _pendingSequence.store(
                             0,
                             std::memory_order_release
