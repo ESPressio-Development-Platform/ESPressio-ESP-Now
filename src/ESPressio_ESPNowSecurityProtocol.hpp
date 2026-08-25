@@ -43,16 +43,45 @@ public:
             Present.fill(false);
             for (auto& f : Fragments) f.clear();
         }
+
+        // Explicitly return retained fragment capacity to the heap at lifecycle
+        // boundaries. Normal Reset() deliberately keeps bounded capacity so
+        // steady-state fragmented traffic does not churn the allocator.
+        void ReleaseStorage() {
+            Reset();
+            for (auto& f : Fragments) std::vector<uint8_t>().swap(f);
+        }
     };
 
-    static bool EncodeFragment(const Fragment& fragment, std::vector<uint8_t>& output) {
+    static bool EncodeFragmentPayload(
+        uint8_t applicationProtocol,
+        uint32_t messageID,
+        uint16_t index,
+        uint16_t count,
+        const uint8_t* data,
+        std::size_t size,
+        std::vector<uint8_t>& output
+    ) {
         output.clear();
-        if (fragment.Count == 0 || fragment.Count > MaximumFragments || fragment.Index >= fragment.Count || fragment.Data.size() > MaximumFragmentPayload) return false;
-        output.reserve(HeaderSize + fragment.Data.size());
-        Append32(output, Magic); output.push_back(Version); output.push_back(0); output.push_back(fragment.ApplicationProtocol);
-        Append32(output, fragment.MessageID); Append16(output, fragment.Index); Append16(output, fragment.Count);
-        output.insert(output.end(), fragment.Data.begin(), fragment.Data.end());
+        if (count == 0 || count > MaximumFragments || index >= count ||
+            size > MaximumFragmentPayload || (data == nullptr && size != 0)) return false;
+        output.reserve(HeaderSize + size);
+        Append32(output, Magic); output.push_back(Version); output.push_back(0); output.push_back(applicationProtocol);
+        Append32(output, messageID); Append16(output, index); Append16(output, count);
+        if (size != 0) output.insert(output.end(), data, data + size);
         return true;
+    }
+
+    static bool EncodeFragment(const Fragment& fragment, std::vector<uint8_t>& output) {
+        return EncodeFragmentPayload(
+            fragment.ApplicationProtocol,
+            fragment.MessageID,
+            fragment.Index,
+            fragment.Count,
+            fragment.Data.data(),
+            fragment.Data.size(),
+            output
+        );
     }
 
     static bool DecodeFragment(const uint8_t* data, std::size_t size, Fragment& fragment) {
@@ -76,8 +105,16 @@ public:
         for (std::size_t i = 0; i < count; ++i) {
             const std::size_t offset = i * MaximumFragmentPayload;
             const std::size_t bytes = std::min(MaximumFragmentPayload, size - offset);
-            Fragment f; f.ApplicationProtocol = applicationProtocol; f.MessageID = messageID; f.Index = static_cast<uint16_t>(i); f.Count = static_cast<uint16_t>(count); f.Data.assign(data + offset, data + offset + bytes);
-            std::vector<uint8_t> encoded; if (!EncodeFragment(f, encoded)) return false; frames.push_back(std::move(encoded));
+            std::vector<uint8_t> encoded;
+            if (!EncodeFragmentPayload(
+                    applicationProtocol,
+                    messageID,
+                    static_cast<uint16_t>(i),
+                    static_cast<uint16_t>(count),
+                    data + offset,
+                    bytes,
+                    encoded)) return false;
+            frames.push_back(std::move(encoded));
         }
         return true;
     }
