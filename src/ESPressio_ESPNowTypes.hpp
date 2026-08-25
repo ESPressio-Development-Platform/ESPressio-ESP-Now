@@ -83,13 +83,12 @@ struct ESPNowTransportConfig {
     bool InitializeWiFi = true;
     uint8_t Channel = 0;
 
-    // #43 / #45: 4096 bytes was initially too small before the peak-live-memory
-    // work in #45. Post-#45 hardware validation now shows approximately
-    // 1.9-2.5 KB minimum-free stack on the same 4096-byte worker during the
-    // current full-stack Lab workload, and the subsequent crashes resolve to
-    // native WiFi internal-heap failures rather than task-stack canaries.
-    // Return the default to the measured 4096-byte operating point while
-    // retaining runtime high-water telemetry and explicit configurability.
+    // Hardware validation proved that 4096 bytes is unsafe when Command/Event
+    // application execution remains synchronously nested on this worker. The
+    // #47 architecture now hands application protocols to dedicated bounded
+    // TaskExecutors immediately after transport classification. Keep 4096 for
+    // the first post-handoff hardware run so its new high-water mark can be
+    // measured directly; reduce it only after that evidence is available.
     uint32_t ReceiveTaskStackSize = 4096;
     UBaseType_t ReceiveTaskPriority = 2;
     BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
