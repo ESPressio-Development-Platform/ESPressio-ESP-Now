@@ -3,9 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <utility>
 
+#include <ESPressio_CommandEvents.hpp>
+#include <ESPressio_CommandResponseRoute.hpp>
+
+#include "ESPressio_ESPNowAsyncProtocolHandler.hpp"
 #include "ESPressio_ESPNowCommandEndpoint.hpp"
 #include "ESPressio_ESPNowTransport.hpp"
 
@@ -13,7 +18,12 @@ namespace ESPressio::ESPNow {
 
 struct ESPNowCommandTransportConfig {
     ESPNowCommandEndpointConfig Endpoint;
+    ESPNowAsyncProtocolHandler::Configuration AsyncHandler;
     uint8_t Protocol = static_cast<uint8_t>(ESPNowProtocol::CommandTransport);
+
+    ESPNowCommandTransportConfig() {
+        AsyncHandler.Name = "espnowCommand";
+    }
 };
 
 class ESPNowCommandTransport final {
@@ -22,6 +32,37 @@ public:
     using PolicyHandler = ESPNowCommandEndpoint::PolicyHandler;
     using ResultObserver = ESPNowCommandEndpoint::ResultObserver;
 
+private:
+    class ResponseRoute final : public Command::ICommandResponseRoute {
+        ESPNowCommandTransport* _owner = nullptr;
+
+    public:
+        explicit ResponseRoute(ESPNowCommandTransport& owner)
+            : _owner(&owner) {
+        }
+
+        void Detach() {
+            _owner = nullptr;
+        }
+
+        bool SendCommandResponse(
+            const Command::CommandOriginAddress& destination,
+            const Command::CommandResponseEnvelope& response
+        ) override {
+            if (_owner == nullptr || destination.Length != 6) {
+                return false;
+            }
+
+            ESPNowCommandPeerAddress peer;
+            for (size_t index = 0; index < peer.Bytes.size(); ++index) {
+                peer.Bytes[index] = destination.Bytes[index];
+            }
+
+            return _owner->CompleteInbound(peer, response);
+        }
+    };
+
+public:
     ~ESPNowCommandTransport() { Shutdown(); }
 
     bool Initialize(
@@ -56,32 +97,85 @@ public:
             }
         }
 
+        _responseRoute = std::make_shared<ResponseRoute>(*this);
+        _responseRouteId =
+            Command::CommandResponseRouteRegistry::GetInstance().Register(
+                _responseRoute
+            );
+        if (_responseRouteId == 0) {
+            std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+            _endpoint.Shutdown();
+            _responseRoute.reset();
+            _transport = nullptr;
+            return false;
+        }
+
+        {
+            std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+            _endpoint.SetInboundRequestHandler(
+                [this](const ESPNowCommandInvocationContext& context) {
+                    Command::CommandRequestEnvelope envelope;
+                    envelope.RequestId = context.Metadata.RequestID;
+                    envelope.Origin.TransportRoute = _responseRouteId;
+                    if (!envelope.Origin.Address.Assign(
+                            context.Metadata.RemotePeer.Bytes.data(),
+                            context.Metadata.RemotePeer.Bytes.size())) {
+                        return false;
+                    }
+                    envelope.ResponseExpectation =
+                        Command::CommandResponseExpectation::Completion;
+                    envelope.ResponseMode = Command::CommandResponseMode::Single;
+                    envelope.ResponseTimeoutMilliseconds =
+                        static_cast<uint32_t>(_config.Endpoint.RequestTimeoutMilliseconds);
+                    if (!envelope.SetRaw(context.Invocation.raw)) {
+                        return false;
+                    }
+
+                    (new Event::InboundCommandEvent(envelope))->Queue();
+                    return true;
+                }
+            );
+        }
+
+        if (!_asyncHandler.Initialize(
+                [this](const ESPNowReceivedFrame& frame) {
+                    if (_transport == nullptr) return;
+                    const uint64_t nowMilliseconds =
+                        _transport->GetMonotonicTimestampNanoseconds() / 1000000ULL;
+                    std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+                    _endpoint.Receive(
+                        ToPeerAddress(frame.Source),
+                        frame.Payload,
+                        frame.PayloadLength,
+                        nowMilliseconds
+                    );
+                },
+                config.AsyncHandler)) {
+            Shutdown();
+            return false;
+        }
+
         const bool registered = transport.RegisterProtocolHandler(
             config.Protocol,
             [this](const ESPNowReceivedFrame& frame) {
-                if (_transport == nullptr) return;
-                const uint64_t nowMilliseconds =
-                    _transport->GetMonotonicTimestampNanoseconds() / 1000000ULL;
-                std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
-                _endpoint.Receive(
-                    ToPeerAddress(frame.Source),
-                    frame.Payload,
-                    frame.PayloadLength,
-                    nowMilliseconds
-                );
+                // The ESP-NOW TransportWorker performs no Command parsing,
+                // policy execution, handler invocation, or response work.
+                // Ownership is handed to the bounded application executor and
+                // the transport stack can unwind immediately.
+                (void)_asyncHandler.Submit(frame);
             }
         );
 
         if (!registered) {
-            std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
-            _endpoint.Shutdown();
-            _transport = nullptr;
+            Shutdown();
             return false;
         }
 
         const bool maintenanceRegistered = transport.RegisterMaintenanceHandler(
             this,
             [this](uint64_t nowMilliseconds) {
+                // Maintenance remains lightweight and bounded. Application
+                // Command execution itself never occurs here.
                 std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
                 _endpoint.Update(nowMilliseconds);
             }
@@ -89,9 +183,7 @@ public:
 
         if (!maintenanceRegistered) {
             transport.UnregisterProtocolHandler(config.Protocol);
-            std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
-            _endpoint.Shutdown();
-            _transport = nullptr;
+            Shutdown();
             return false;
         }
 
@@ -104,6 +196,20 @@ public:
             _transport->UnregisterMaintenanceHandler(this);
             _transport->UnregisterProtocolHandler(_config.Protocol);
         }
+
+        _asyncHandler.Shutdown();
+
+        if (_responseRouteId != 0) {
+            Command::CommandResponseRouteRegistry::GetInstance().Unregister(
+                _responseRouteId
+            );
+            _responseRouteId = 0;
+        }
+        if (_responseRoute) {
+            _responseRoute->Detach();
+            _responseRoute.reset();
+        }
+
         {
             std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
             _endpoint.Shutdown();
@@ -133,9 +239,6 @@ public:
         );
     }
 
-    // Compatibility hook. Periodic maintenance is now automatic on the
-    // ESPNowTransport PrecisionThread worker; callers no longer need to invoke
-    // Update() from Arduino loop(). Manual calls remain safe and idempotent.
     void Update() {
         if (!_initialized || _transport == nullptr) return;
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
@@ -159,16 +262,43 @@ public:
         return _endpoint.GetOutstandingRequestCount();
     }
 
+    std::size_t GetInboundRequestCount() const noexcept {
+        std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+        return _endpoint.GetInboundRequestCount();
+    }
+
     const ESPNowCommandEndpointConfig& GetEndpointConfig() const noexcept {
         return _endpoint.GetConfig();
+    }
+
+    Task::TaskExecutionStatistics GetAsyncHandlerStatistics() const {
+        return _asyncHandler.GetStatistics();
+    }
+
+    uint64_t GetRejectedAsyncHandoffCount() const noexcept {
+        return _asyncHandler.GetRejectedHandoffCount();
     }
 
 private:
     ESPNowTransport* _transport = nullptr;
     ESPNowCommandTransportConfig _config;
     ESPNowCommandEndpoint _endpoint;
+    ESPNowAsyncProtocolHandler _asyncHandler;
+    std::shared_ptr<ResponseRoute> _responseRoute;
+    Command::CommandTransportRouteId _responseRouteId = 0;
     mutable std::recursive_mutex _endpointMutex;
     bool _initialized = false;
+
+    bool CompleteInbound(
+        const ESPNowCommandPeerAddress& peer,
+        const Command::CommandResponseEnvelope& response
+    ) {
+        if (!_initialized || _transport == nullptr) return false;
+        const uint64_t nowMilliseconds =
+            _transport->GetMonotonicTimestampNanoseconds() / 1000000ULL;
+        std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+        return _endpoint.CompleteInbound(peer, response, nowMilliseconds);
+    }
 
     static ESPNowCommandPeerAddress ToPeerAddress(const MacAddress& address) {
         ESPNowCommandPeerAddress result;
