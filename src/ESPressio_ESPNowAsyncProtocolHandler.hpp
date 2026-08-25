@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <utility>
 
 #include <ESPressio_Task.hpp>
@@ -51,9 +52,16 @@ public:
     ESPNowAsyncProtocolHandler(const ESPNowAsyncProtocolHandler&) = delete;
     ESPNowAsyncProtocolHandler& operator=(const ESPNowAsyncProtocolHandler&) = delete;
 
+    bool Initialize(Handler handler) {
+        return Initialize(
+            std::move(handler),
+            Configuration{}
+        );
+    }
+
     bool Initialize(
         Handler handler,
-        Configuration configuration = {}
+        Configuration configuration
     ) {
         Shutdown();
         if (!handler || configuration.StackSize == 0 || configuration.QueueDepth == 0) {
