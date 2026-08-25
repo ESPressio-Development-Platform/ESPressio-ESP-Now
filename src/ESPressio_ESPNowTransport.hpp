@@ -172,6 +172,7 @@ private:
     mutable std::mutex _radioBindingMutex;
     ESPNowRadioBinding _radioBinding{};
     std::atomic<bool> _initialized{false};
+    std::atomic<bool> _nativeSuspended{false};
     std::shared_ptr<TransportObservable> _observable = std::make_shared<TransportObservable>();
     std::atomic<ESPNowSendFailure> _lastSendFailure{ESPNowSendFailure::None};
     std::atomic<int32_t> _lastSendNativeError{0};
@@ -282,6 +283,7 @@ private:
             if (!updated && freeHint != nullptr) { freeHint->Used = true; freeHint->Address = address; freeHint->Interface = interface; }
         }
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+        if (_nativeSuspended.load(std::memory_order_acquire)) return;
         if (esp_now_is_peer_exist(address.Bytes)) {
             esp_now_peer_info_t peer{};
             if (esp_now_get_peer(address.Bytes, &peer) == ESP_OK && peer.ifidx != interface) {
@@ -349,6 +351,7 @@ private:
     }
 
     bool ReconcileManagedPeersLocked() {
+        if (_nativeSuspended.load(std::memory_order_acquire)) return false;
         std::array<ESPNowPeerConfig, ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS> configs{};
         const std::size_t count = CopyManagedPeerConfigs(configs);
         bool success = true;
@@ -368,6 +371,7 @@ private:
             esp_now_deinit();
             return false;
         }
+        _nativeSuspended.store(false, std::memory_order_release);
         return ReconcileManagedPeersLocked();
     }
 
@@ -428,6 +432,7 @@ private:
 
     void CleanupFailedInitialization() {
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+        _nativeSuspended.store(true, std::memory_order_release);
         CallbackInstance() = nullptr;
         esp_now_unregister_recv_cb();
         esp_now_deinit();
@@ -462,6 +467,7 @@ public:
             if (esp_now_init() != ESP_OK) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
             CallbackInstance() = this;
             if (esp_now_register_recv_cb(ReceiveCallback) != ESP_OK) { CleanupFailedInitialization(); _observable->InitializationFailed(); return false; }
+            _nativeSuspended.store(false, std::memory_order_release);
         }
         _lastSendFailure.store(ESPNowSendFailure::None);
         _lastSendNativeError.store(0);
@@ -482,6 +488,7 @@ public:
         if (!_initialized.exchange(false, std::memory_order_acq_rel)) return;
         {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+            _nativeSuspended.store(true, std::memory_order_release);
             esp_now_unregister_recv_cb();
             CallbackInstance() = nullptr;
             esp_now_deinit();
@@ -512,18 +519,59 @@ public:
 
     MacAddress GetLocalEndpointAddress(ESPNowWiFiInterface interface = ESPNowWiFiInterface::Auto) const {
         wifi_interface_t native = WIFI_IF_STA;
-        if (interface == ESPNowWiFiInterface::Auto) {
-            const auto binding = RadioBindingSnapshot();
-            native = binding.PreferredInterface == ESPNowWiFiInterface::AccessPoint ? WIFI_IF_AP : binding.PreferredInterface == ESPNowWiFiInterface::Station ? WIFI_IF_STA : CurrentDefaultInterface();
-        } else native = ExplicitInterface(interface);
+        switch (interface) {
+            case ESPNowWiFiInterface::Auto: {
+                const auto binding = RadioBindingSnapshot();
+                switch (binding.PreferredInterface) {
+                    case ESPNowWiFiInterface::AccessPoint:
+                        native = WIFI_IF_AP;
+                        break;
+                    case ESPNowWiFiInterface::Station:
+                        native = WIFI_IF_STA;
+                        break;
+                    case ESPNowWiFiInterface::Auto:
+                        native = CurrentDefaultInterface();
+                        break;
+                }
+                break;
+            }
+            case ESPNowWiFiInterface::AccessPoint:
+            case ESPNowWiFiInterface::Station:
+                native = ExplicitInterface(interface);
+                break;
+        }
         uint8_t address[MacAddressLength] = {};
         return esp_wifi_get_mac(native, address) == ESP_OK ? MacAddress(address) : MacAddress{};
     }
 
-    bool SetRadioAvailable(bool available) { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding.Available = available; return true; }
+    bool SetRadioAvailable(bool available) {
+        std::lock_guard<std::mutex> lock(_radioBindingMutex);
+        _radioBinding.Available = available;
+        return true;
+    }
+
+    bool SuspendNativeForRadioTransition() {
+        if (!GetIsInitialized()) return false;
+        SetRadioAvailable(false);
+        std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+        _nativeSuspended.store(true, std::memory_order_release);
+        CallbackInstance() = nullptr;
+        esp_now_unregister_recv_cb();
+        const esp_err_t result = esp_now_deinit();
+        switch (result) {
+            case ESP_OK:
+                return true;
+#ifdef ESP_ERR_ESPNOW_NOT_INIT
+            case ESP_ERR_ESPNOW_NOT_INIT:
+                return true;
+#endif
+            default:
+                return false;
+        }
+    }
 
     bool ReconcileManagedPeers() {
-        if (!GetIsInitialized()) return false;
+        if (!GetIsInitialized() || _nativeSuspended.load(std::memory_order_acquire)) return false;
         ClearPeerInterfaceHints();
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
         return ReconcileManagedPeersLocked();
@@ -543,7 +591,17 @@ public:
         bool success = false;
         {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-            success = reinitializeNativeState ? ReinitializeNativeStateLocked() : ReconcileManagedPeersLocked();
+            const bool mustReinitialize =
+                reinitializeNativeState ||
+                _nativeSuspended.load(std::memory_order_acquire);
+            switch (mustReinitialize) {
+                case true:
+                    success = ReinitializeNativeStateLocked();
+                    break;
+                case false:
+                    success = ReconcileManagedPeersLocked();
+                    break;
+            }
         }
         { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = binding; _radioBinding.Available = binding.Available && success; }
         return success;
@@ -573,6 +631,7 @@ public:
         if (!GetIsInitialized() || config.Address.IsZero()) return false;
         if (!StoreManagedPeer(config)) return false;
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+        if (_nativeSuspended.load(std::memory_order_acquire)) return true;
         if (!ProgramPeerNativeLocked(config, true)) { ForgetManagedPeer(config.Address); return false; }
         return true;
     }
@@ -580,6 +639,11 @@ public:
     bool RemovePeer(const MacAddress& address) {
         if (!GetIsInitialized() || address.IsZero()) return false;
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+        if (_nativeSuspended.load(std::memory_order_acquire)) {
+            ClearPeerInterfaceHint(address);
+            ForgetManagedPeer(address);
+            return true;
+        }
         const bool existed = esp_now_is_peer_exist(address.Bytes);
         const esp_err_t result = esp_now_del_peer(address.Bytes);
         const bool success = result == ESP_OK || result == ESP_ERR_ESPNOW_NOT_FOUND;
@@ -590,21 +654,32 @@ public:
 
     ESPNowSendResult SendDetailed(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) {
         ESPNowSendResult result;
-        if (!GetIsInitialized()) { result.Failure = ESPNowSendFailure::NotInitialized; result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT); }
-        else if (!RadioBindingSnapshot().Available) { result.Failure = ESPNowSendFailure::RadioUnavailable; result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE); }
-        else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) { result.Failure = ESPNowSendFailure::InvalidArgument; result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG); }
-        else {
-            uint8_t frame[MaximumFrameSize] = {0};
-            WireHeader header;
-            header.Protocol = protocol;
-            header.PayloadLength = static_cast<uint16_t>(payloadLength);
-            std::memcpy(frame, &header, sizeof(header));
-            if (payload != nullptr && payloadLength > 0) std::memcpy(frame + sizeof(header), payload, payloadLength);
-            esp_err_t native = ESP_FAIL;
-            { std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex); native = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength); }
-            result.Success = native == ESP_OK;
-            result.NativeError = static_cast<int32_t>(native);
-            result.Failure = ClassifySendFailure(native);
+        if (!GetIsInitialized()) {
+            result.Failure = ESPNowSendFailure::NotInitialized;
+            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT);
+        } else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) {
+            result.Failure = ESPNowSendFailure::InvalidArgument;
+            result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG);
+        } else {
+            std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
+            if (
+                _nativeSuspended.load(std::memory_order_acquire) ||
+                !RadioBindingSnapshot().Available
+            ) {
+                result.Failure = ESPNowSendFailure::RadioUnavailable;
+                result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE);
+            } else {
+                uint8_t frame[MaximumFrameSize] = {0};
+                WireHeader header;
+                header.Protocol = protocol;
+                header.PayloadLength = static_cast<uint16_t>(payloadLength);
+                std::memcpy(frame, &header, sizeof(header));
+                if (payload != nullptr && payloadLength > 0) std::memcpy(frame + sizeof(header), payload, payloadLength);
+                const esp_err_t native = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength);
+                result.Success = native == ESP_OK;
+                result.NativeError = static_cast<int32_t>(native);
+                result.Failure = ClassifySendFailure(native);
+            }
         }
         _lastSendFailure.store(result.Failure);
         _lastSendNativeError.store(result.NativeError);
