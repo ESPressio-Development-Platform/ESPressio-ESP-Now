@@ -39,6 +39,16 @@ target_include_directories(test_command_transport PRIVATE
 )
 add_test(NAME ESPNowCommandTransport COMMAND test_command_transport)
 
+add_executable(test_async_command_handoff test_async_command_handoff.cpp)
+target_compile_features(test_async_command_handoff PRIVATE cxx_std_17)
+target_compile_options(test_async_command_handoff PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_include_directories(test_async_command_handoff PRIVATE
+    ../src
+    ${ESPRESSIO_COMMAND_INCLUDE_DIR}
+    ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
+)
+add_test(NAME ESPNowAsyncCommandHandoff COMMAND test_async_command_handoff)
+
 add_executable(test_observer_contract test_observer_contract.cpp)
 target_compile_features(test_observer_contract PRIVATE cxx_std_17)
 target_compile_options(test_observer_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
