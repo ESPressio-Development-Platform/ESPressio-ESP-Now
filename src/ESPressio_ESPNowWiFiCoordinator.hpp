@@ -6,6 +6,8 @@
 
 #include <cstdint>
 
+#include <esp_now.h>
+
 #include <ESPressio_WiFi.hpp>
 #include <ESPressio_IWiFiRadioObserver.hpp>
 
@@ -45,6 +47,7 @@ public:
         _haveSnapshot = false;
         _scanSuspended = false;
         _nativeStateInvalidated = false;
+        _transitionSuspendedNativeState = false;
     }
 
     bool IsInitialized() const noexcept { return static_cast<bool>(_observerHandle); }
@@ -74,9 +77,19 @@ public:
         const WiFi::WiFiRadioState&,
         WiFi::WiFiRadioTransitionReason
     ) override {
-        // No new ESP-NOW transmission should enter the driver while WiFi is
-        // changing the shared radio mode/AP/STA/channel configuration.
+        // WiFi owns disruptive radio transitions. Block new ESP-NOW sends
+        // first, then detach ESP-NOW from ESP-IDF's WiFi interface objects
+        // before WiFi.mode()/SoftAP/STA startup tears those objects down.
+        // Logical managed peers, protocol handlers, queues and the worker stay
+        // alive in ESPressio; the post-transition rebuild recreates only the
+        // native ESP-NOW attachment and peer table.
         _transport.SetRadioAvailable(false);
+        if (_transport.GetIsInitialized()) {
+            const esp_err_t result = esp_now_deinit();
+            (void)result;
+            _nativeStateInvalidated = true;
+            _transitionSuspendedNativeState = true;
+        }
     }
 
     void OnWiFiRadioTransitionCompleted(
@@ -84,7 +97,12 @@ public:
         const WiFi::WiFiRadioState& after,
         WiFi::WiFiRadioTransitionReason
     ) override {
-        (void)ApplyState(after, false);
+        // A transition-suspended native instance must always be rebuilt before
+        // traffic resumes, even when the resulting interface/channel happens
+        // to compare equal to the previous snapshot.
+        const bool rebuild = _transitionSuspendedNativeState || _nativeStateInvalidated;
+        _transitionSuspendedNativeState = false;
+        (void)ApplyState(after, rebuild);
     }
 
     void OnWiFiRadioStateChanged(
@@ -96,6 +114,7 @@ public:
             _transport.SetRadioAvailable(false);
             return;
         }
+        if (_transitionSuspendedNativeState) return;
         (void)ApplyState(after, false);
     }
 
@@ -106,6 +125,7 @@ public:
 
     void OnWiFiRadioScanCompleted(const WiFi::WiFiRadioState& after) override {
         _scanSuspended = false;
+        if (_transitionSuspendedNativeState) return;
         (void)ApplyState(after, false);
     }
 
@@ -147,17 +167,11 @@ private:
         binding.Channel = state.Channel;
         binding.Available = !_scanSuspended;
 
-        // A transition through WiFi Off invalidates native ESP-NOW underneath
-        // us. Rebuild directly on the first active snapshot rather than first
-        // probing an invalid native peer table and relying on failure recovery.
         const bool rebuildRequired = forceNativeReinitialization || _nativeStateInvalidated;
         bool success = _transport.ApplyRadioBinding(binding, rebuildRequired);
 
         if (!success && !rebuildRequired &&
             (interfaceChanged || channelChanged || radioModeChanged)) {
-            // For ordinary active-radio transitions, attempt lightweight
-            // reconciliation first and escalate once only if the IDF driver
-            // rejects the managed-peer update.
             success = _transport.ApplyRadioBinding(binding, true);
         }
 
@@ -179,6 +193,7 @@ private:
     bool _haveSnapshot = false;
     bool _scanSuspended = false;
     bool _nativeStateInvalidated = false;
+    bool _transitionSuspendedNativeState = false;
 };
 
 } // namespace ESPNow
