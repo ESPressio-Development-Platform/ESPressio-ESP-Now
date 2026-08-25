@@ -73,10 +73,6 @@ struct MacAddress {
     }
 };
 
-// Logical binding between ESP-NOW and the shared WiFi radio. WiFi remains the
-// authority for native radio mode/channel; ESP-NOW consumes this snapshot to
-// rebind Auto peers and to expose explicit temporary-unavailability windows
-// such as WiFi scans and disruptive mode transitions.
 struct ESPNowRadioBinding {
     ESPNowWiFiInterface PreferredInterface = ESPNowWiFiInterface::Auto;
     uint8_t Channel = 0;
@@ -87,23 +83,18 @@ struct ESPNowTransportConfig {
     bool InitializeWiFi = true;
     uint8_t Channel = 0;
 
-    // Preserved 0.8.x names: these now configure the ESPressio PrecisionThread
-    // worker that owns receive processing and protocol maintenance.
-    //
-    // #43: the previous 8192-byte / 12-frame defaults consumed excessive
-    // scarce internal RAM on classic ESP32 targets. Hardware validation then
-    // demonstrated that the initial 4096-byte stack reduction left only
-    // ~80-124 bytes of measured stack headroom and triggered stack-canary
-    // failures under encrypted bidirectional Command/Event traffic. Retain the
-    // 6-frame queue optimisation, but use a conservative 6144-byte worker stack.
-    uint32_t ReceiveTaskStackSize = 6144;
+    // #43 / #45: 4096 bytes was initially too small before the peak-live-memory
+    // work in #45. Post-#45 hardware validation now shows approximately
+    // 1.9-2.5 KB minimum-free stack on the same 4096-byte worker during the
+    // current full-stack Lab workload, and the subsequent crashes resolve to
+    // native WiFi internal-heap failures rather than task-stack canaries.
+    // Return the default to the measured 4096-byte operating point while
+    // retaining runtime high-water telemetry and explicit configurability.
+    uint32_t ReceiveTaskStackSize = 4096;
     UBaseType_t ReceiveTaskPriority = 2;
     BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
     std::size_t ReceiveQueueLength = 6;
 
-    // Minimum start-to-start interval for ESP-NOW worker iterations. Incoming
-    // frames remain queued until the next permitted iteration; they do not
-    // bypass this rate limit.
     uint32_t WorkerIterationIntervalMilliseconds = 5;
 };
 
