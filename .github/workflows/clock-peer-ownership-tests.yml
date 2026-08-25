@@ -1,0 +1,38 @@
+name: Clock peer ownership
+
+on:
+  push:
+    branches:
+      - bugfix/39-wifi-coexistence
+  pull_request:
+
+jobs:
+  peer-ownership-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify clock synchronization is non-destructive to existing peers
+        shell: python
+        run: |
+          from pathlib import Path
+
+          source = Path("src/ESPressio_ESPNowClockSynchronizer.hpp").read_text()
+
+          assert "bool EnsurePeerExists" in source
+          assert "esp_now_is_peer_exist" in source
+          assert "if (\n                        esp_now_is_peer_exist(" in source
+          assert "return true;" in source[source.index("bool EnsurePeerExists"):source.index("uint64_t\n                RecoverSystemTimestamp")]
+
+          helper = source[source.index("bool EnsurePeerExists"):source.index("uint64_t\n                RecoverSystemTimestamp")]
+          assert helper.index("esp_now_is_peer_exist") < helper.index("AddPeer")
+
+          process_request = source[source.index("void ProcessRequest"):source.index("void ProcessResponse")]
+          assert "EnsurePeerExists" in process_request
+          assert "AddPeer" not in process_request
+
+          initialize = source[source.index("bool Initialize("):source.index("void Shutdown()")]
+          assert "EnsurePeerExists" in initialize
+          assert "AddPeer" not in initialize
+
+          print("Clock synchronization preserves existing peer ownership/configuration")
