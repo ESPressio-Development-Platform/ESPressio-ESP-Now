@@ -5,8 +5,7 @@
 #endif
 
 #include <cstdint>
-
-#include <esp_now.h>
+#include <mutex>
 
 #include <ESPressio_WiFi.hpp>
 #include <ESPressio_IWiFiRadioObserver.hpp>
@@ -34,6 +33,7 @@ public:
     ~ESPNowWiFiCoordinator() override { Shutdown(); }
 
     bool Initialize() {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         if (_observerHandle) return ApplyState(_wifiManager.RadioState(), false);
         if (!_transport.GetIsInitialized()) return false;
 
@@ -43,6 +43,7 @@ public:
     }
 
     void Shutdown() {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _observerHandle.reset();
         _haveSnapshot = false;
         _scanSuspended = false;
@@ -50,8 +51,14 @@ public:
         _transitionSuspendedNativeState = false;
     }
 
-    bool IsInitialized() const noexcept { return static_cast<bool>(_observerHandle); }
-    ESPNowRadioBinding CurrentBinding() const { return _transport.GetRadioBinding(); }
+    bool IsInitialized() const noexcept {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
+        return static_cast<bool>(_observerHandle);
+    }
+
+    ESPNowRadioBinding CurrentBinding() const {
+        return _transport.GetRadioBinding();
+    }
 
     static ESPNowWiFiInterface ResolvePreferredInterface(const WiFi::WiFiRadioState& state) {
         switch (state.Mode) {
@@ -70,6 +77,7 @@ public:
     }
 
     bool RefreshBinding(bool forceNativeReinitialization = false) {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         return ApplyState(_wifiManager.RadioState(), forceNativeReinitialization);
     }
 
@@ -77,16 +85,13 @@ public:
         const WiFi::WiFiRadioState&,
         WiFi::WiFiRadioTransitionReason
     ) override {
-        // WiFi owns disruptive radio transitions. Block new ESP-NOW sends
-        // first, then detach ESP-NOW from ESP-IDF's WiFi interface objects
-        // before WiFi.mode()/SoftAP/STA startup tears those objects down.
-        // Logical managed peers, protocol handlers, queues and the worker stay
-        // alive in ESPressio; the post-transition rebuild recreates only the
-        // native ESP-NOW attachment and peer table.
-        _transport.SetRadioAvailable(false);
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
+
+        // The transport exclusively owns native ESP-NOW lifecycle operations.
+        // Suspending through it serializes deinit against send/peer/reconcile
+        // operations before WiFi mutates the underlying interface objects.
         if (_transport.GetIsInitialized()) {
-            const esp_err_t result = esp_now_deinit();
-            (void)result;
+            (void)_transport.SuspendNativeForRadioTransition();
             _nativeStateInvalidated = true;
             _transitionSuspendedNativeState = true;
         }
@@ -97,10 +102,10 @@ public:
         const WiFi::WiFiRadioState& after,
         WiFi::WiFiRadioTransitionReason
     ) override {
-        // A transition-suspended native instance must always be rebuilt before
-        // traffic resumes, even when the resulting interface/channel happens
-        // to compare equal to the previous snapshot.
-        const bool rebuild = _transitionSuspendedNativeState || _nativeStateInvalidated;
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
+        const bool rebuild =
+            _transitionSuspendedNativeState ||
+            _nativeStateInvalidated;
         _transitionSuspendedNativeState = false;
         (void)ApplyState(after, rebuild);
     }
@@ -109,6 +114,7 @@ public:
         const WiFi::WiFiRadioState&,
         const WiFi::WiFiRadioState& after
     ) override {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         if (after.Scanning) {
             _scanSuspended = true;
             _transport.SetRadioAvailable(false);
@@ -119,11 +125,13 @@ public:
     }
 
     void OnWiFiRadioScanBeginning(const WiFi::WiFiRadioState&) override {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _scanSuspended = true;
         _transport.SetRadioAvailable(false);
     }
 
     void OnWiFiRadioScanCompleted(const WiFi::WiFiRadioState& after) override {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _scanSuspended = false;
         if (_transitionSuspendedNativeState) return;
         (void)ApplyState(after, false);
@@ -134,20 +142,24 @@ private:
         const WiFi::WiFiRadioState& state,
         bool forceNativeReinitialization
     ) {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         if (!_transport.GetIsInitialized()) return false;
 
-        if (state.Mode == WiFi::WiFiRadioMode::Off) {
-            // WiFi driver shutdown invalidates the native ESP-NOW instance.
-            // Do not probe or reconcile the native peer table while the radio
-            // is off; remember that the next active state requires a rebuild.
-            _nativeStateInvalidated = true;
-            _scanSuspended = false;
-            _transport.SetRadioAvailable(false);
-            _lastRadioMode = state.Mode;
-            _lastPreferredInterface = ESPNowWiFiInterface::Auto;
-            _lastChannel = 0;
-            _haveSnapshot = true;
-            return true;
+        switch (state.Mode) {
+            case WiFi::WiFiRadioMode::Off:
+                _nativeStateInvalidated = true;
+                _scanSuspended = false;
+                _transport.SetRadioAvailable(false);
+                _lastRadioMode = state.Mode;
+                _lastPreferredInterface = ESPNowWiFiInterface::Auto;
+                _lastChannel = 0;
+                _haveSnapshot = true;
+                return true;
+
+            case WiFi::WiFiRadioMode::AccessPoint:
+            case WiFi::WiFiRadioMode::Station:
+            case WiFi::WiFiRadioMode::AccessPointStation:
+                break;
         }
 
         if (state.Scanning) {
@@ -167,11 +179,16 @@ private:
         binding.Channel = state.Channel;
         binding.Available = !_scanSuspended;
 
-        const bool rebuildRequired = forceNativeReinitialization || _nativeStateInvalidated;
+        const bool rebuildRequired =
+            forceNativeReinitialization ||
+            _nativeStateInvalidated;
         bool success = _transport.ApplyRadioBinding(binding, rebuildRequired);
 
-        if (!success && !rebuildRequired &&
-            (interfaceChanged || channelChanged || radioModeChanged)) {
+        if (
+            !success &&
+            !rebuildRequired &&
+            (interfaceChanged || channelChanged || radioModeChanged)
+        ) {
             success = _transport.ApplyRadioBinding(binding, true);
         }
 
@@ -186,6 +203,7 @@ private:
 
     ESPNowTransport& _transport;
     WiFi::WiFiManager& _wifiManager;
+    mutable std::recursive_mutex _stateMutex;
     Observable::ObserverHandlePtr _observerHandle;
     WiFi::WiFiRadioMode _lastRadioMode = WiFi::WiFiRadioMode::Off;
     ESPNowWiFiInterface _lastPreferredInterface = ESPNowWiFiInterface::Auto;
