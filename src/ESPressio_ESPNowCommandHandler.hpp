@@ -8,6 +8,7 @@
 #include <functional>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include <esp_wifi.h>
 
@@ -130,10 +131,17 @@ private:
         if (!_options.SetRadioChannel(channel))
             return Command::CommandResult::Error("Radio channel change failed");
 
+        uint8_t actualChannel = channel;
+        wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+        (void)esp_wifi_get_channel(&actualChannel, &secondary);
+
         auto binding = _transport->GetRadioBinding();
-        binding.Channel = channel;
+        binding.Channel = actualChannel;
         binding.Available = true;
-        return ApplyBinding(binding, true);
+        // The radio authority may already have driven a full WiFi/ESP-NOW
+        // transition. Reconcile peers against the resulting channel without
+        // forcing a second native ESP-NOW teardown/restart.
+        return ApplyBinding(binding, false);
     }
 
     Command::CommandResult ApplyBinding(const ESPNowRadioBinding& binding, bool forceNativeReinitialization) {
