@@ -1,0 +1,58 @@
+name: State Integration
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'optimisation/**'
+  pull_request:
+
+jobs:
+  esp32-state-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install platformio
+      - name: Create integration project
+        run: |
+          mkdir -p /tmp/espnow-state/src
+          cat > /tmp/espnow-state/platformio.ini <<'EOF'
+          [env:esp32dev]
+          platform = espressif32
+          board = esp32dev
+          framework = arduino
+          lib_deps =
+              file://${{ github.workspace }}
+              https://github.com/ESPressio-Development-Platform/ESPressio-State.git#feature/1-state-foundation
+          build_flags = -std=gnu++17
+          EOF
+          cat > /tmp/espnow-state/src/main.cpp <<'EOF'
+          #include <Arduino.h>
+          #include <ESPressio_State.hpp>
+          #include <ESPressio_ESPNow.hpp>
+          #include <ESPressio_ESPNowStateTransport.hpp>
+
+          struct LedState {
+              using Value = bool;
+              static constexpr ESPressio::State::StateTypeId Id = 1;
+          };
+          using Contract = ESPressio::State::StateContract<LedState>;
+
+          ESPressio::State::StatePublisher<Contract> publisher;
+          ESPressio::State::RemoteStateManager<Contract, 2> remoteState;
+          ESPressio::State::StateSubscriptionRegistry<2> subscriptions;
+          ESPressio::ESPNow::ESPNowStateTransport<Contract, 2, 2, 2> stateTransport(
+              publisher,
+              remoteState,
+              subscriptions
+          );
+
+          void setup() {}
+          void loop() {}
+          EOF
+      - name: Compile optional State transport
+        run: pio run -d /tmp/espnow-state
