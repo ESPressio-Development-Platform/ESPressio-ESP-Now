@@ -96,7 +96,7 @@ The command handler never directly assumes WiFi ownership. ESPressio WiFi applic
 ## 2026-08-25 — Re-right-size worker after measured #45 improvement (#43 / #45)
 
 ### Hardware evidence
-The first 4096-byte worker configuration was unsafe before #45: encrypted bidirectional traffic drove minimum-free stack to roughly 80-124 bytes and caused stack-canary failures. After #45 shortened transient lifetimes and streamed fragment work, the current full Lab build has again been operating with a 4096-byte worker and reports approximately 1920 bytes minimum-free on StickA and 2540 bytes on StickB in `espnow status` during coexistence testing. Periodic high-water telemetry in the same run remained around 2000 bytes on StickA before the later WiFi failure.
+The first 4096-byte worker configuration was unsafe before #45: encrypted bidirectional traffic drove minimum-free stack to roughly 80-124 bytes and caused stack-canary failures. After #45 shortened transient lifetimes and streamed fragment work, the current full Lab build has again been operating with a 4096-byte worker and reports approximately 1920 bytes minimum-free on StickA and 2540 bytes minimum-free on StickB in `espnow status` during coexistence testing. Periodic high-water telemetry in the same run remained around 2000 bytes on StickA before the later WiFi failure.
 
 The subsequent StickA crashes were resolved with the exact ELF/MAP to `ieee80211_hostap_attach` / `wifi_softap_start`; one explicitly failed `esp_timer_create()` with `ESP_ERR_NO_MEM`. They were therefore native WiFi internal-heap failures, not ESP-NOW worker stack exhaustion.
 
@@ -110,3 +110,33 @@ This is not a repeat of the earlier speculative 8192 -> 4096 cut. It follows the
 Approximately 2048 bytes of permanent FreeRTOS worker-stack reservation per transport instance relative to the temporary 6144-byte safety baseline.
 
 Commit: `e6cd7cd835244be2d3fe1c6051f1c3bec0ceec4f` — `perf(#43,#45): right-size worker stack after measured peak reduction`.
+
+## 2026-08-25 — Asynchronous application handoff (#47)
+
+### Hardware evidence
+Encrypted Command/Event hardware traces showed that the transport worker could still overflow even after #45 because validated inbound frames synchronously nested application work on top of the ESP-NOW transport call stack. A secure Command could remain inside receive/reassembly/decrypt while Command execution, response construction, secure transmit, observer notification and Event/Timing work accumulated beneath it.
+
+### Architecture
+- Added `ESPNowAsyncProtocolHandler`, backed by a bounded persistent ESPressio `TaskExecutor`, as the explicit application-dispatch boundary.
+- ESP-NOW protocol handlers now copy/submit validated application frames to the bounded executor and return to `TransportWorker` immediately.
+- Event packet reassembly and `IEventTransportReceiver` delivery run on the Event protocol executor rather than on `TransportWorker`.
+- Command protocol reassembly runs on the Command protocol executor; decoded inbound Commands are converted to transport-neutral `CommandRequestEnvelope` values and queued through ESPressio Event.
+- Command execution occurs later on `CommandEventExecutor`; completion is correlated by request ID and returned through a lifetime-safe registered ESP-NOW `ICommandResponseRoute`.
+- Duplicate in-flight Command requests preserve request identity and are not enqueued twice; completed duplicates are served from the bounded duplicate-result cache.
+- Command endpoint access remains synchronized for application-originated `Invoke()` and compatibility `Update()` calls.
+- The application executor exposes execution statistics and rejected-handoff counters for hardware validation.
+- `TransportWorker` remains at 4096 bytes for the first post-handoff hardware run; its high-water telemetry will determine whether a later reduction is safe.
+
+### Regression / CI
+- Added host regression coverage proving that inbound Command receive/reassembly does not execute the application Command synchronously.
+- Covered in-flight duplicate suppression, bounded inbound saturation, asynchronous completion correlation, cached duplicate completion and deterministic rejected-handoff errors.
+- Host and ESP32 integration CI now resolve the coordinated Task, Command, Event, Threads and WiFi working branches and compile the new executor/response-route surface.
+- No version number changes during this development round.
+
+### Commits
+- `1d64f4d` — `feat(#47): hand off ESP-NOW Event processing to bounded TaskExecutor`
+- `af6c4ea` — `docs(#47): correct transport-worker stack rationale for async handoff`
+- `8bf27d3` / `6ce28e1` — working-branch dependency wiring for Task/Event/Command
+- `21f4c97` — `test(#47): prove inbound Command handoff is asynchronous and bounded`
+- `23e94b7` — `test(#47): add asynchronous Command handoff regression target`
+- `d3a97cf` — `test(#47): validate async handoff against coordinated working branches`
