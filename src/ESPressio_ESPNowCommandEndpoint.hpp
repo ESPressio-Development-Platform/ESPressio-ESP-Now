@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <ESPressio_CommandEnvelope.hpp>
+
 #include "ESPressio_ESPNowCommandProtocol.hpp"
 
 namespace ESPressio::ESPNow {
@@ -385,23 +387,37 @@ private:
             inbound.Context = context;
             _inbound.push_back(std::move(inbound));
 
-            if (_inboundHandler(_inbound.back().Context)) {
+            if (_inboundHandler(context)) {
                 return true;
             }
 
             _inbound.pop_back();
-            return SendErrorResponse(peer, requestID, "Failed to hand off inbound Command", 7, nowMilliseconds);
+            return SendErrorResponse(peer, requestID, "Inbound Command handoff rejected", 7, nowMilliseconds);
         }
 
-        // Compatibility fallback for consumers that have not opted into the
-        // asynchronous Command/Event handoff yet.
-        const Command::CommandResult result = _registry->Invoke(context.Invocation);
+        Command::CommandResult result = _registry->Invoke(context.Invocation);
         if (_observer) _observer(context, result);
         return SendResponseAndCache(peer, requestID, result, nowMilliseconds);
     }
 
-    bool HandleResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
-                        const std::vector<uint8_t>& payload) {
+    bool SendErrorResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID, const char* message,
+                           int code, uint64_t nowMilliseconds) {
+        return SendResponseAndCache(peer, requestID, Command::CommandResult::Error(message, code), nowMilliseconds);
+    }
+
+    bool SendResponseAndCache(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
+                              const Command::CommandResult& result, uint64_t nowMilliseconds) {
+        ESPNowCommandProtocol::Response response;
+        response.RequestID = requestID;
+        response.Result = result;
+        std::vector<uint8_t> payload;
+        if (!ESPNowCommandProtocol::EncodeResponse(response, payload) || payload.empty() ||
+            payload.size() > _config.MaximumMessageBytes) return false;
+        StoreDuplicate(peer, requestID, nowMilliseconds, payload);
+        return SendPayload(peer, ESPNowCommandMessageType::Response, requestID, payload);
+    }
+
+    bool HandleResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID, const std::vector<uint8_t>& payload) {
         ESPNowCommandProtocol::Response response;
         if (!ESPNowCommandProtocol::DecodeResponse(requestID, payload.data(), payload.size(), response)) return false;
         for (std::size_t i = 0; i < _pending.size(); ++i) {
@@ -414,29 +430,6 @@ private:
         }
         return false;
     }
-
-    bool SendErrorResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
-                           std::string message, int code, uint64_t nowMilliseconds) {
-        return SendResponseAndCache(
-            peer,
-            requestID,
-            Command::CommandResult::Error(std::move(message), code),
-            nowMilliseconds
-        );
-    }
-
-    bool SendResponseAndCache(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
-                              const Command::CommandResult& result, uint64_t nowMilliseconds) {
-        ESPNowCommandProtocol::Response response;
-        response.RequestID = requestID;
-        response.Result = result;
-        std::vector<uint8_t> encoded;
-        if (!ESPNowCommandProtocol::EncodeResponse(response, encoded) ||
-            encoded.size() > _config.MaximumMessageBytes) return false;
-        auto* cached = StoreDuplicate(peer, requestID, nowMilliseconds, std::move(encoded));
-        return cached != nullptr &&
-            SendPayload(peer, ESPNowCommandMessageType::Response, requestID, cached->EncodedResponse);
-    }
 };
 
-}
+} // namespace ESPressio::ESPNow
