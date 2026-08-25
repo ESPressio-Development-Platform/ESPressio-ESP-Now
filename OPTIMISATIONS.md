@@ -48,3 +48,34 @@ Forced AP/channel-1 Lab validation materially improved StickB-to-StickA Command 
 Do not redefine the public meaning of `ESPNowPeerConfig::Channel == 0` yet. Keep #44 focused on proving the lifecycle hypothesis with explicit AP/channel-1 peer materialization and expanded Lab diagnostics that capture discovery trigger, native peer interface/channel, radio binding, EventTransport destination state, role, and startup-ready state.
 
 A generalized Auto/channel-0 transport change remains deferred until hardware tests isolate whether the remaining asymmetry is native peer programming, role election, or application peer-registration ordering.
+
+## 2026-08-25 — Reduce peak live stack and transient heap in synchronous worker paths (#45)
+
+### Context
+Increasing the worker stack to 6144 bytes restores immediate safety margin, but source inspection showed avoidable overlapping lifetime in the synchronous receive/decrypt/Command/reply path. The objective is to reduce the amount of memory simultaneously live inside a worker iteration rather than treating a larger task stack as the final solution.
+
+### Changes
+- Added `ESPNowSecurityProtocol::EncodeFragmentPayload()` so callers can encode one secure fragment directly from a payload span without first creating a heap-owned `Fragment::Data` copy.
+- Reworked secure transmit to reuse one encoded fragment buffer instead of materializing a `vector<vector<uint8_t>>` containing the complete secured envelope a second time.
+- Narrowed secure receive temporary scope so decoded fragment and encrypted-envelope storage are destroyed before application Command/Event callbacks execute.
+- Added `ReassemblyState::ReleaseStorage()` for explicit lifecycle-boundary release of retained fragment vector capacity; normal `Reset()` intentionally retains bounded capacity to avoid steady-state allocator churn.
+- Added streaming Command fragmentation through `GetFragmentCount()` + `BuildFragment()`; the Command endpoint now reuses one fragment buffer instead of constructing every protocol fragment before sending.
+- Moved decoded `CommandInvocation` ownership into the invocation context instead of duplicating it before execution.
+- Moved encoded response ownership directly into the duplicate-response cache and sends from that stable cache entry, preserving the existing cache-before-send duplicate semantics without an additional payload copy.
+- Kept the 6144-byte worker stack unchanged during this tranche so subsequent hardware high-water measurements can quantify the actual peak reduction safely.
+
+### Regression coverage
+- Existing Command endpoint tests exercise multi-fragment request/response behavior through the new streaming `SendPayload()` path, including reverse-order reassembly, duplicate handling, timeout behavior, policy callbacks and long payloads.
+- Security protocol tests compare the new one-fragment streaming encoder byte-for-byte against the retained materialized-fragment compatibility helper.
+- Security tests verify explicit reassembly storage release.
+
+### Deferred higher-risk work
+The transport still has avoidable stack-resident frame duplication (`CallbackFrame` plus `ESPNowReceivedFrame`), a stack-resident 250-byte send frame, and a stack-resident maintenance-handler snapshot. These remain candidates for a subsequent #45 tranche, but the received-frame ownership model and callback lifetimes require a more careful change than the secure/Command lifetime reductions above. Deferring application execution onto another task also remains out of scope because it would change scheduling semantics.
+
+### Commits
+- `5222671` — `perf(#45): stream secure fragment encoding`
+- `bf20f54` — `perf(#45): shorten secure transport temporary lifetimes`
+- `ae6d8d7` — `perf(#45): support streaming command fragments`
+- `978e42f` — `perf(#45): reduce command transport transient copies`
+- `3c2bfec` — `fix(#45): include algorithm for streamed secure fragments`
+- `8dfb06a` — `test(#45): cover streamed secure fragment encoding`
