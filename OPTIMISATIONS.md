@@ -79,3 +79,24 @@ The transport still has avoidable stack-resident frame duplication (`CallbackFra
 - `978e42f` — `perf(#45): reduce command transport transient copies`
 - `3c2bfec` — `fix(#45): include algorithm for streamed secure fragments`
 - `8dfb06a` — `test(#45): cover streamed secure fragment encoding`
+
+## 2026-08-25 — Transactional WiFi radio-transition ownership (#44 / WiFi #22)
+
+### Hardware evidence
+The ESP-NOW-only Lab control remains highly reliable when the radio is established once and then left stable. With ESPressio WiFi present, explicit AP mode still showed native ESP-NOW `NO_MEM` send rejection, AP→Client left native peers incompatible with the resulting STA interface (`ESP_ERR_ESPNOW_IF`), and Client→AP crashed inside ESP-IDF SoftAP startup while ESP-NOW remained attached to the WiFi driver.
+
+### Change
+- `ESPNowWiFiCoordinator` now treats WiFi's pre/post radio callbacks as a transaction boundary rather than merely an availability hint.
+- On transition beginning, new ESP-NOW traffic is marked unavailable and the native ESP-NOW attachment is deinitialized before WiFi changes mode/interface state.
+- Logical ESPressio state remains intact: worker, protocol handlers, receive queue configuration, managed-peer records and higher-level Command/Event/Security objects are not shut down.
+- On transition completion, the coordinator forces native ESP-NOW reinitialization and managed-peer reconciliation against the resulting WiFi interface/channel before making the binding available again.
+- Intermediate state-change/scan callbacks do not attempt reconciliation while the native attachment is transition-suspended.
+
+### Rationale
+The earlier coordinator left `esp_now` and its native peer table attached while `WiFi.mode()` could tear down or recreate AP/STA interface structures. The new boundary gives WiFi exclusive ownership of disruptive driver changes, then reconstructs ESP-NOW from logical state afterward. This directly targets stale-interface errors and the observed native Client→AP transition crash without introducing a full ESPressio transport shutdown/re-registration cycle.
+
+### Safety / rollback
+The repository rollback branch remains the pre-optimisation recovery point. The change is isolated to the optional WiFi coordinator path; standalone ESP-NOW behavior is unchanged. No version number changes are made.
+
+### Commits
+- `513a03b` — `fix(#44): suspend native ESP-NOW during WiFi radio transitions`
