@@ -30,11 +30,12 @@ int main() {
     ESPNow::ESPNowTransportConfig transport;
     assert(transport.InitializeWiFi);
     assert(transport.Channel == 0);
-    assert(transport.ReceiveTaskStackSize == 4096);
+    assert(transport.ReceiveTaskStackSize == 6144);
     assert(transport.ReceiveQueueLength == 6);
 
     // #43: defaults must remain bounded for constrained classic ESP32 RAM,
-    // while applications remain free to request larger values explicitly.
+    // while retaining measured hardware safety margin. Applications remain
+    // free to request either smaller experimental or larger conservative values.
     transport.ReceiveTaskStackSize = 8192;
     transport.ReceiveQueueLength = 12;
     assert(transport.ReceiveTaskStackSize == 8192);
