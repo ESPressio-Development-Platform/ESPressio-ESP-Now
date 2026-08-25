@@ -30,12 +30,15 @@ int main() {
     ESPNow::ESPNowTransportConfig transport;
     assert(transport.InitializeWiFi);
     assert(transport.Channel == 0);
-    assert(transport.ReceiveTaskStackSize == 6144);
+    assert(transport.ReceiveTaskStackSize == 4096);
     assert(transport.ReceiveQueueLength == 6);
 
-    // #43: defaults must remain bounded for constrained classic ESP32 RAM,
-    // while retaining measured hardware safety margin. Applications remain
-    // free to request either smaller experimental or larger conservative values.
+    // #47: application Command/Event work now leaves the transport worker via
+    // bounded asynchronous handoff. Keep the transport worker at 4096 bytes for
+    // the first post-handoff hardware high-water measurement rather than
+    // retaining the temporary 6144-byte synchronous-execution safety margin.
+    // Applications remain free to request either smaller experimental or larger
+    // conservative values after measuring their own workloads.
     transport.ReceiveTaskStackSize = 8192;
     transport.ReceiveQueueLength = 12;
     assert(transport.ReceiveTaskStackSize == 8192);
