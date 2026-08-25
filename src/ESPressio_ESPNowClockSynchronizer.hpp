@@ -5,6 +5,8 @@
 #include <cstring>
 #include <mutex>
 
+#include <esp_now.h>
+
 #include <ESPressio_IClockSynchronizationTarget.hpp>
 #include <ESPressio_SystemClock.hpp>
 
@@ -94,6 +96,42 @@ namespace ESPressio {
                         _config.Mode ==
                             ESPNowClockSynchronizationMode::
                                 ClientAndReference;
+                }
+
+
+                bool EnsurePeerExists(
+                    const MacAddress& address
+                ) {
+                    if (
+                        address.IsZero() ||
+                        _transport == nullptr
+                    ) {
+                        return false;
+                    }
+
+                    /*
+                     * Peer configuration is owned by the transport/mesh layer.
+                     * Clock synchronization only needs the peer to exist; it
+                     * must never overwrite an existing peer's encryption, LMK,
+                     * channel or interface merely because the local device has
+                     * entered Client/Reference clock-sync mode.
+                     */
+                    if (
+                        esp_now_is_peer_exist(
+                            address.Bytes
+                        )
+                    ) {
+                        return true;
+                    }
+
+                    ESPNowPeerConfig peer;
+                    peer.Address = address;
+
+                    return
+                        _transport->
+                            AddPeer(
+                                peer
+                            );
                 }
 
 
@@ -220,22 +258,17 @@ namespace ESPressio {
                     response.T2 =
                         t2;
 
-                    ESPNowPeerConfig peer;
-
-                    peer.Address =
-                        frame.Source;
-
                     if (
-                        !_transport->AddPeer(
-                            peer
+                        !EnsurePeerExists(
+                            frame.Source
                         )
                     ) {
                         return;
                     }
 
                     /*
-                     * Capture T3 only after any peer-registration work, as
-                     * close to the actual ESP-NOW send operation as possible.
+                     * Capture T3 only after any missing-peer registration work,
+                     * as close to the actual ESP-NOW send operation as possible.
                      */
                     response.T3 =
                         _target->
@@ -405,21 +438,12 @@ namespace ESPressio {
                     if (
                         IsClientMode() &&
                         !_config.ReferencePeer.
-                            IsZero()
+                            IsZero() &&
+                        !EnsurePeerExists(
+                            _config.ReferencePeer
+                        )
                     ) {
-                        ESPNowPeerConfig peer;
-
-                        peer.Address =
-                            _config.ReferencePeer;
-
-                        if (
-                            !_transport->
-                                AddPeer(
-                                    peer
-                                )
-                        ) {
-                            return false;
-                        }
+                        return false;
                     }
 
                     if (
