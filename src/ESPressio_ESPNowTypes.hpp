@@ -21,6 +21,7 @@ enum class ESPNowProtocol : uint8_t {
     EventTransport = 2,
     CommandTransport = 3,
     SecureTransport = 4,
+    StateTransport = 5,
     UserBase = 64
 };
 
@@ -82,18 +83,10 @@ struct ESPNowRadioBinding {
 struct ESPNowTransportConfig {
     bool InitializeWiFi = true;
     uint8_t Channel = 0;
-
-    // Hardware validation proved that 4096 bytes is unsafe when Command/Event
-    // application execution remains synchronously nested on this worker. The
-    // #47 architecture now hands application protocols to dedicated bounded
-    // TaskExecutors immediately after transport classification. Keep 4096 for
-    // the first post-handoff hardware run so its new high-water mark can be
-    // measured directly; reduce it only after that evidence is available.
     uint32_t ReceiveTaskStackSize = 4096;
     UBaseType_t ReceiveTaskPriority = 2;
     BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
     std::size_t ReceiveQueueLength = 6;
-
     uint32_t WorkerIterationIntervalMilliseconds = 5;
 };
 
