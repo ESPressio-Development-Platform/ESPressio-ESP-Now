@@ -92,3 +92,21 @@ The command handler never directly assumes WiFi ownership. ESPressio WiFi applic
 - `760f47c` — `feat(#46): add runtime ESP-NOW command handler`
 - `ad15d29` — `fix(#46): keep channel changes within radio authority lifecycle`
 - `e56fb13` — `docs(#46): document ESP-NOW runtime command surface`
+
+## 2026-08-25 — Re-right-size worker after measured #45 improvement (#43 / #45)
+
+### Hardware evidence
+The first 4096-byte worker configuration was unsafe before #45: encrypted bidirectional traffic drove minimum-free stack to roughly 80-124 bytes and caused stack-canary failures. After #45 shortened transient lifetimes and streamed fragment work, the current full Lab build has again been operating with a 4096-byte worker and reports approximately 1920 bytes minimum-free on StickA and 2540 bytes on StickB in `espnow status` during coexistence testing. Periodic high-water telemetry in the same run remained around 2000 bytes on StickA before the later WiFi failure.
+
+The subsequent StickA crashes were resolved with the exact ELF/MAP to `ieee80211_hostap_attach` / `wifi_softap_start`; one explicitly failed `esp_timer_create()` with `ESP_ERR_NO_MEM`. They were therefore native WiFi internal-heap failures, not ESP-NOW worker stack exhaustion.
+
+### Change
+`ESPNowTransportConfig::ReceiveTaskStackSize` returns from 6144 to 4096 bytes, retaining the 6-frame receive queue and high-water telemetry.
+
+### Safety rationale
+This is not a repeat of the earlier speculative 8192 -> 4096 cut. It follows the #45 peak-live-memory changes and uses measured post-change hardware headroom of roughly 1.9-2.5 KB on the 4096-byte reservation. The value remains explicitly configurable for heavier applications.
+
+### Expected internal-RAM recovery
+Approximately 2048 bytes of permanent FreeRTOS worker-stack reservation per transport instance relative to the temporary 6144-byte safety baseline.
+
+Commit: `e6cd7cd835244be2d3fe1c6051f1c3bec0ceec4f` — `perf(#43,#45): right-size worker stack after measured peak reduction`.
