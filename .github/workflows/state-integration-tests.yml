@@ -28,6 +28,7 @@ jobs:
           lib_deps =
               file://${{ github.workspace }}
               https://github.com/ESPressio-Development-Platform/ESPressio-State.git#feature/1-state-foundation
+          build_unflags = -std=gnu++11
           build_flags = -std=gnu++17
           EOF
           cat > /tmp/espnow-state/src/main.cpp <<'EOF'
