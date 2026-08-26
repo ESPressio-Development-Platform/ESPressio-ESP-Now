@@ -31,22 +31,22 @@
         },
         {
             "name":"ESPressio-Observable",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#3.0.2",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#feature/16-rtti-free-observer-registry",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Threads",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#optimisation/69-resource-footprint",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#feature/73-memory-efficiency",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Event",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#optimisation/55-event-registry-footprint",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#feature/57-rtti-free-memory-efficiency",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Command",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#feature/30-async-command-routing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#integration/30-32-async-memory-efficiency",
             "platforms":"espressif32"
         }
     ]
