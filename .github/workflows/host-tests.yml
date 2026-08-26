@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Command
-          ref: feature/30-async-command-routing
+          ref: integration/30-32-async-memory-efficiency
           path: deps/ESPressio-Command
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Observable
-          ref: 3.0.2
+          ref: feature/16-rtti-free-observer-registry
           path: deps/ESPressio-Observable
       - name: Configure
         run: >-
@@ -68,12 +68,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Event
-          ref: optimisation/55-event-registry-footprint
+          ref: feature/57-rtti-free-memory-efficiency
           path: project/dependencies/ESPressio-Event
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Command
-          ref: feature/30-async-command-routing
+          ref: integration/30-32-async-memory-efficiency
           path: project/dependencies/ESPressio-Command
       - uses: actions/checkout@v4
         with:
@@ -83,12 +83,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Observable
-          ref: 3.0.2
+          ref: feature/16-rtti-free-observer-registry
           path: project/dependencies/ESPressio-Observable
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Serializable
-          ref: 0.11.3
+          ref: optimisation/25-psram-buffers
           path: project/dependencies/ESPressio-Serializable
       - uses: actions/checkout@v4
         with:
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Threads
-          ref: optimisation/69-resource-footprint
+          ref: integration/69-73-memory-efficiency
           path: project/dependencies/ESPressio-Threads
       - uses: actions/checkout@v4
         with:
@@ -127,6 +127,7 @@ jobs:
           build_flags =
               -std=gnu++17
               -frtti
+              -DESPRESSIO_SERIALIZATION_PREFER_PSRAM
           build_unflags =
               -std=gnu++11
               -fno-rtti
