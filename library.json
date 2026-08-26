@@ -4,18 +4,45 @@
     "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,command,security,encryption,transport,observable,threads,task,espressio",
     "authors": {"name":"Simon J. Stuart","maintainer":true,"url":"https://espressio.org"},
     "homepage": "https://espressio.org",
-    "build": {"flags": ["-DESPRESSIO_ESPNOW"]},
+    "build": {
+        "flags": ["-std=gnu++17","-DESPRESSIO_ESPNOW"],
+        "unflags": ["-std=gnu++11"]
+    },
     "repository": {"type":"git","url":"https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git"},
     "version": "0.8.3",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "espressif32",
     "dependencies": [
-        {"name":"ESPressio-Task","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#feature/1-task-execution","platforms":"espressif32"},
-        {"name":"ESPressio-Timing","version":">=2.2.8 <3.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git","platforms":"espressif32"},
-        {"name":"ESPressio-Observable","version":">=3.0.2 <4.0.0","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git","platforms":"*"},
-        {"name":"ESPressio-Threads","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#optimisation/69-resource-footprint","platforms":"espressif32"},
-        {"name":"ESPressio-Event","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#optimisation/55-event-registry-footprint","platforms":"espressif32"},
-        {"name":"ESPressio-Command","url":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#feature/30-async-command-routing","platforms":"espressif32"}
+        {
+            "name":"ESPressio-Task",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#feature/1-task-execution",
+            "platforms":"espressif32"
+        },
+        {
+            "name":"ESPressio-Timing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#2.2.8",
+            "platforms":"espressif32"
+        },
+        {
+            "name":"ESPressio-Observable",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#3.0.2",
+            "platforms":"*"
+        },
+        {
+            "name":"ESPressio-Threads",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#optimisation/69-resource-footprint",
+            "platforms":"espressif32"
+        },
+        {
+            "name":"ESPressio-Event",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#optimisation/55-event-registry-footprint",
+            "platforms":"espressif32"
+        },
+        {
+            "name":"ESPressio-Command",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#feature/30-async-command-routing",
+            "platforms":"espressif32"
+        }
     ]
 }
