@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <mutex>
 #include <tuple>
+#include <utility>
 
 #include <ESPressio_State.hpp>
 
@@ -283,7 +284,7 @@ private:
                     parsed.Header.Origin,
                     parsed.Header.Epoch,
                     parsed.Header.Revision,
-                    value
+                    std::move(value)
                 );
             }
             return ApplyIncoming<TIndex + 1>(parsed, exactDuplicate);
@@ -508,9 +509,7 @@ public:
             );
             return false;
         }
-        _publisherHandle = _publisher.RegisterObserver(
-            static_cast<State::IStatePublisherObserver*>(this)
-        );
+        _publisherHandle = _publisher.RegisterContractObserver(this);
         _subscriptionHandle = _subscriptions.RegisterObserver(
             static_cast<State::IStateSubscriptionRegistryObserver*>(this)
         );
@@ -597,6 +596,7 @@ public:
         const State::StateUpdate<State::StateValueType<TDefinition>>& update
     ) {
         if (!_subscribers.template HasSubscribers<TDefinition>()) return;
+
         _subscribers.ForEachSubscriber(
             State::StateTypeIdOf<TDefinition>,
             [&](const State::DeviceIdentifier& subscriber) {
