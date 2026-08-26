@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Timing
-          ref: 2.2.8
+          ref: main
           path: project/dependencies/ESPressio-Timing
       - uses: actions/checkout@v4
         with:
@@ -29,12 +29,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Units
-          ref: 0.2.7
+          ref: chore/27-serializable-0.11.3-cascade
           path: project/dependencies/ESPressio-Units
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Threads
-          ref: integration/69-73-memory-efficiency
+          ref: optimisation/69-resource-footprint
           path: project/dependencies/ESPressio-Threads
       - uses: actions/checkout@v4
         with:
@@ -56,9 +56,9 @@ jobs:
           framework = arduino
           build_flags =
               -std=gnu++17
-              -frtti
+              -fno-rtti
               -DESPRESSIO_SERIALIZATION_PREFER_PSRAM
-          build_unflags = -std=gnu++11 -fno-rtti
+          build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           lib_deps =
               ../dependencies/ESPressio-Observable
@@ -127,7 +127,7 @@ jobs:
           }
           void loop() { delay(1000); }
           EOF
-      - name: Compile coexistence surface
+      - name: Compile coexistence surface without RTTI
         run: pio run -d project/compile
 
   source-guards:
