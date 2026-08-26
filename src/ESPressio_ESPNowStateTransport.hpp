@@ -195,6 +195,7 @@ private:
         if (!State::StateProtocol::DecodeUpdate(frame.Payload, frame.PayloadLength, parsed)) return;
         const auto source = DeviceFromMac(frame.Source);
         if (parsed.Header.Origin != source) return;
+        if (!_subscriptions.IsSubscribed(source, parsed.Header.TypeId)) return;
         (void)RememberPeer(frame.Source);
         (void)_remote.SetAvailability(source, State::RemoteDeviceAvailability::Connected);
         bool duplicate = false;
