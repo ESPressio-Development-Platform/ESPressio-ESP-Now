@@ -36,7 +36,7 @@
         },
         {
             "name":"ESPressio-Threads",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#feature/73-memory-efficiency",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#integration/69-73-memory-efficiency",
             "platforms":"espressif32"
         },
         {
