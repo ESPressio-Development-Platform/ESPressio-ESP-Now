@@ -278,6 +278,25 @@ private:
         *pending = PendingSubscriptionRecord{};
     }
 
+    void ClearPendingState(
+        const State::DeviceIdentifier& device,
+        State::StateTypeId typeId
+    ) {
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        auto* pending = PendingLocked(device, typeId, false);
+        if (pending != nullptr) *pending = PendingRecord{};
+    }
+
+    void ClearPeerPending(const State::DeviceIdentifier& device) {
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        for (auto& pending : _pending) {
+            if (pending.Used && pending.Destination == device) pending = PendingRecord{};
+        }
+        for (auto& pending : _pendingSubscriptions) {
+            if (pending.Used && pending.Destination == device) pending = PendingSubscriptionRecord{};
+        }
+    }
+
     void HandleControl(const ESPNowReceivedFrame& frame) {
         State::StateProtocol::ControlMessage control;
         if (!State::StateProtocol::DecodeControl(frame.Payload, frame.PayloadLength, control)) return;
@@ -307,9 +326,11 @@ private:
                 );
                 break;
             case State::StateProtocol::MessageType::Unsubscribe:
-                // Unsubscribe is likewise idempotent: absence is already the
-                // requested relationship and is acknowledged as converged.
+                // Unsubscribe is likewise idempotent. Once the relationship is
+                // absent, no pending update for this device/type is allowed to
+                // survive and be retried after interest has been withdrawn.
                 (void)_subscribers.Unsubscribe(source, control.TypeId);
+                ClearPendingState(source, control.TypeId);
                 (void)SendControl(
                     source,
                     State::StateProtocol::MessageType::UnsubscribeAcknowledgement,
@@ -327,6 +348,7 @@ private:
                 break;
             case State::StateProtocol::MessageType::Disconnect:
                 (void)_subscribers.Remove(source);
+                ClearPeerPending(source);
                 (void)_remote.SetAvailability(source, State::RemoteDeviceAvailability::Disconnected);
                 break;
             default:
@@ -370,16 +392,6 @@ private:
 
     void SendSubscriptionToPeer(const State::DeviceIdentifier& peer, State::StateTypeId typeId, bool subscribe) {
         (void)SetSubscriptionIntent(peer, typeId, subscribe);
-    }
-
-    void ClearPeerPending(const State::DeviceIdentifier& device) {
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
-        for (auto& pending : _pending) {
-            if (pending.Used && pending.Destination == device) pending = PendingRecord{};
-        }
-        for (auto& pending : _pendingSubscriptions) {
-            if (pending.Used && pending.Destination == device) pending = PendingSubscriptionRecord{};
-        }
     }
 
 public:
@@ -459,6 +471,11 @@ public:
 
     template<typename TDefinition>
     void OnTypedStatePublished(const State::StateUpdate<State::StateValueType<TDefinition>>& update) {
+        // Publishing a local revision is independent from transporting it.
+        // If nobody currently subscribes to this exact State definition, do
+        // no encoding, pending-slot allocation, or ESP-NOW submission at all.
+        if (!_subscribers.template HasSubscribers<TDefinition>()) return;
+
         _subscribers.ForEachSubscriber(State::StateTypeIdOf<TDefinition>, [&](const State::DeviceIdentifier& subscriber) {
             (void)QueueUpdate<TDefinition>(subscriber, update);
         });
