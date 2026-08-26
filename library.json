@@ -5,8 +5,8 @@
     "authors": {"name":"Simon J. Stuart","maintainer":true,"url":"https://espressio.org"},
     "homepage": "https://espressio.org",
     "build": {
-        "flags": ["-std=gnu++17", "-frtti", "-DESPRESSIO_ESPNOW"],
-        "unflags": ["-std=gnu++11", "-fno-rtti"]
+        "flags": ["-std=gnu++17", "-DESPRESSIO_ESPNOW"],
+        "unflags": ["-std=gnu++11"]
     },
     "repository": {"type":"git","url":"https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git"},
     "version": "0.8.3",
@@ -21,12 +21,12 @@
         },
         {
             "name":"ESPressio-Units",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#0.2.7",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#chore/27-serializable-0.11.3-cascade",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Timing",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#2.2.8",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#main",
             "platforms":"espressif32"
         },
         {
@@ -36,7 +36,7 @@
         },
         {
             "name":"ESPressio-Threads",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#integration/69-73-memory-efficiency",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#optimisation/69-resource-footprint",
             "platforms":"espressif32"
         },
         {
@@ -46,7 +46,7 @@
         },
         {
             "name":"ESPressio-Command",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#integration/30-32-async-memory-efficiency",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#feature/30-async-command-routing",
             "platforms":"espressif32"
         }
     ]
