@@ -252,19 +252,21 @@ private:
     }
 
     void Maintain(uint64_t nowMilliseconds) {
-        std::array<PendingRecord, MaximumPending> retry{};
-        std::size_t count = 0;
-        {
-            std::lock_guard<std::recursive_mutex> lock(_mutex);
-            for (auto& pending : _pending) {
-                if (!pending.Used || pending.Size == 0) continue;
-                if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
-                pending.LastSendMilliseconds = nowMilliseconds;
-                retry[count++] = pending;
-            }
-        }
-        for (std::size_t index = 0; index < count; ++index) {
-            (void)SendRaw(retry[index].Destination, retry[index].Payload.data(), retry[index].Size);
+        // Maintenance runs on ESPNowTransportWorker. Pending records contain a
+        // full wire image, so never batch-copy MaximumPending records onto that
+        // worker's stack. Iterate the fixed member storage in-place instead.
+        //
+        // Holding the State mutex across SendRaw also prevents a newer revision
+        // from superseding the selected record between retry selection and the
+        // transport copying the payload. Once ESPNowTransport::Send() returns,
+        // the frame has crossed the State transport boundary and a later State
+        // revision may safely supersede the pending record.
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        for (auto& pending : _pending) {
+            if (!pending.Used || pending.Size == 0) continue;
+            if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
+            pending.LastSendMilliseconds = nowMilliseconds;
+            (void)SendRaw(pending.Destination, pending.Payload.data(), pending.Size);
         }
     }
 
