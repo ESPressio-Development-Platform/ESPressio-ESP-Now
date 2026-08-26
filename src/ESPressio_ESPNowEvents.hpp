@@ -8,32 +8,44 @@
 
 namespace ESPressio::Event {
 
-class ESPNowTransportInitializedEvent final : public Event<> {};
-class ESPNowTransportInitializationFailedEvent final : public Event<> {};
-class ESPNowTransportShutdownEvent final : public Event<> {};
+class ESPNowTransportInitializedEvent final :
+    public TypedEvent<ESPNowTransportInitializedEvent> {};
 
-class ESPNowPeerAddedEvent final : public Event<> {
+class ESPNowTransportInitializationFailedEvent final :
+    public TypedEvent<ESPNowTransportInitializationFailedEvent> {};
+
+class ESPNowTransportShutdownEvent final :
+    public TypedEvent<ESPNowTransportShutdownEvent> {};
+
+class ESPNowPeerAddedEvent final :
+    public TypedEvent<ESPNowPeerAddedEvent> {
 public:
     const ESPNow::MacAddress Address;
     explicit ESPNowPeerAddedEvent(const ESPNow::MacAddress& address) : Address(address) {}
 };
 
-class ESPNowPeerRemovedEvent final : public Event<> {
+class ESPNowPeerRemovedEvent final :
+    public TypedEvent<ESPNowPeerRemovedEvent> {
 public:
     const ESPNow::MacAddress Address;
     explicit ESPNowPeerRemovedEvent(const ESPNow::MacAddress& address) : Address(address) {}
 };
 
-class ESPNowSendAcceptedEvent final : public Event<> {
+class ESPNowSendAcceptedEvent final :
+    public TypedEvent<ESPNowSendAcceptedEvent> {
 public:
     const ESPNow::MacAddress Destination;
     const uint8_t Protocol;
     const std::size_t PayloadLength;
-    ESPNowSendAcceptedEvent(const ESPNow::MacAddress& destination, uint8_t protocol, std::size_t payloadLength)
-        : Destination(destination), Protocol(protocol), PayloadLength(payloadLength) {}
+    ESPNowSendAcceptedEvent(
+        const ESPNow::MacAddress& destination,
+        uint8_t protocol,
+        std::size_t payloadLength
+    ) : Destination(destination), Protocol(protocol), PayloadLength(payloadLength) {}
 };
 
-class ESPNowSendFailedEvent final : public Event<> {
+class ESPNowSendFailedEvent final :
+    public TypedEvent<ESPNowSendFailedEvent> {
 public:
     const ESPNow::MacAddress Destination;
     const uint8_t Protocol;
