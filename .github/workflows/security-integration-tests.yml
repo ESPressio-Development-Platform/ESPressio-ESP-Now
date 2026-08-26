@@ -2,9 +2,7 @@ name: Security Integration
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   host-security-protocol:
@@ -12,46 +10,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: 1.0.3, path: deps/ESPressio-Command}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: feature/30-async-command-routing, path: deps/ESPressio-Command}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: 3.0.2, path: deps/ESPressio-Observable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
       - name: Configure
         run: cmake -S tests -B build -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src" -DESPRESSIO_OBSERVABLE_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Observable/src"
       - name: Build security protocol test
         run: cmake --build build --target test_security_protocol --parallel
       - name: Test security protocol
         run: ctest --test-dir build -R ESPNowSecurityProtocol --output-on-failure
+
   esp32-secure-peer:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Security, ref: 0.4.2, path: deps/ESPressio-Security}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Security, ref: main, path: deps/ESPressio-Security}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: 2.2.8, path: deps/ESPressio-Timing}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: feature/1-task-execution, path: deps/ESPressio-Task}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: 0.2.7, path: deps/ESPressio-Units}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: main, path: deps/ESPressio-Timing}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: 3.0.2, path: deps/ESPressio-Observable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: chore/27-serializable-0.11.3-cascade, path: deps/ESPressio-Units}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: 3.1.7, path: deps/ESPressio-Threads}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
+      - uses: actions/checkout@v4
+        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: optimisation/69-resource-footprint, path: deps/ESPressio-Threads}
       - name: Install PlatformIO
         run: pip install platformio
       - name: Create PlatformIO consumer project
         shell: bash
         run: |
-          PROJECT="$RUNNER_TEMP/espressio-espnow-security-ci"; mkdir -p "$PROJECT/src" "$PROJECT/lib"
+          PROJECT="$RUNNER_TEMP/espressio-espnow-security-ci"
+          mkdir -p "$PROJECT/src" "$PROJECT/lib"
           rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
-          for DEP in ESPressio-Security ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Threads; do cp -R "deps/$DEP" "$PROJECT/lib/$DEP"; done
+          for DEP in ESPressio-Security ESPressio-Task ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Threads; do
+            cp -R "deps/$DEP" "$PROJECT/lib/$DEP"
+          done
           cat > "$PROJECT/platformio.ini" <<'EOF'
           [env:esp32dev]
           platform = espressif32
           board = esp32dev
           framework = arduino
-          build_flags = -std=gnu++17 -frtti
-          build_unflags = -std=gnu++11 -fno-rtti
+          build_flags = -std=gnu++17 -fno-rtti
+          build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           EOF
           cp examples/SecurePeer/SecurePeer.ino "$PROJECT/src/main.cpp"
-      - name: Compile SecurePeer against Security 0.4.2
+      - name: Compile SecurePeer against current Security stack without RTTI
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-security-ci"
