@@ -55,6 +55,14 @@ private:
         std::array<uint8_t, MaximumPayloadBytes> Payload{};
     };
 
+    struct PendingSubscriptionRecord {
+        bool Used = false;
+        State::DeviceIdentifier Destination{};
+        State::StateTypeId TypeId = 0;
+        bool DesiredSubscribed = false;
+        uint64_t LastSendMilliseconds = 0;
+    };
+
     ESPNowTransport& _transport;
     Publisher& _publisher;
     RemoteManager& _remote;
@@ -62,6 +70,7 @@ private:
     State::StateSubscriberRegistry<TContract, TMaximumPeers> _subscribers;
     std::array<PeerRecord, TMaximumPeers> _peers{};
     std::array<PendingRecord, MaximumPending> _pending{};
+    std::array<PendingSubscriptionRecord, MaximumPending> _pendingSubscriptions{};
     Observable::ObserverHandlePtr _publisherHandle;
     Observable::ObserverHandlePtr _subscriptionHandle;
     mutable std::recursive_mutex _mutex;
@@ -114,6 +123,26 @@ private:
         return nullptr;
     }
 
+    PendingSubscriptionRecord* PendingSubscriptionLocked(
+        const State::DeviceIdentifier& destination,
+        State::StateTypeId typeId,
+        bool create
+    ) {
+        for (auto& record : _pendingSubscriptions) {
+            if (record.Used && record.Destination == destination && record.TypeId == typeId) return &record;
+        }
+        if (!create) return nullptr;
+        for (auto& record : _pendingSubscriptions) {
+            if (!record.Used) {
+                record.Used = true;
+                record.Destination = destination;
+                record.TypeId = typeId;
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
     bool SendRaw(const State::DeviceIdentifier& destination, const uint8_t* payload, std::size_t size) {
         MacAddress peer;
         if (!MacFromDevice(destination, peer)) return false;
@@ -134,6 +163,27 @@ private:
         std::size_t size = 0;
         return State::StateProtocol::EncodeAcknowledgement(ack, payload.data(), payload.size(), size) &&
             SendRaw(destination, payload.data(), size);
+    }
+
+    bool SetSubscriptionIntent(
+        const State::DeviceIdentifier& destination,
+        State::StateTypeId typeId,
+        bool subscribe
+    ) {
+        if (destination.IsZero() || typeId == 0) return false;
+        const uint64_t nowMilliseconds = _transport.GetMonotonicTimestampNanoseconds() / 1000000ULL;
+        {
+            std::lock_guard<std::recursive_mutex> lock(_mutex);
+            auto* pending = PendingSubscriptionLocked(destination, typeId, true);
+            if (pending == nullptr) return false;
+            pending->DesiredSubscribed = subscribe;
+            pending->LastSendMilliseconds = nowMilliseconds;
+        }
+        return SendControl(
+            destination,
+            subscribe ? State::StateProtocol::MessageType::Subscribe : State::StateProtocol::MessageType::Unsubscribe,
+            typeId
+        );
     }
 
     template<typename TDefinition>
@@ -214,24 +264,65 @@ private:
         *pending = PendingRecord{};
     }
 
+    void HandleSubscriptionAcknowledgement(
+        const ESPNowReceivedFrame& frame,
+        const State::StateProtocol::ControlMessage& control
+    ) {
+        const auto source = DeviceFromMac(frame.Source);
+        if (control.Device != source) return;
+        const bool acknowledgedSubscribed =
+            control.Type == State::StateProtocol::MessageType::SubscribeAcknowledgement;
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        auto* pending = PendingSubscriptionLocked(source, control.TypeId, false);
+        if (pending == nullptr || pending->DesiredSubscribed != acknowledgedSubscribed) return;
+        *pending = PendingSubscriptionRecord{};
+    }
+
     void HandleControl(const ESPNowReceivedFrame& frame) {
         State::StateProtocol::ControlMessage control;
         if (!State::StateProtocol::DecodeControl(frame.Payload, frame.PayloadLength, control)) return;
         const auto source = DeviceFromMac(frame.Source);
         if (control.Device != source) return;
         (void)RememberPeer(frame.Source);
+
+        if (
+            control.Type == State::StateProtocol::MessageType::SubscribeAcknowledgement ||
+            control.Type == State::StateProtocol::MessageType::UnsubscribeAcknowledgement
+        ) {
+            HandleSubscriptionAcknowledgement(frame, control);
+            return;
+        }
+
         switch (control.Type) {
             case State::StateProtocol::MessageType::Subscribe:
-                if (_subscribers.Subscribe(source, control.TypeId)) (void)QueueSnapshotByType(source, control.TypeId);
+                // Subscribe is idempotent. A repeated Subscribe is also an
+                // implicit resynchronization request: always send the current
+                // snapshot, even when the subscriber relationship already exists.
+                (void)_subscribers.Subscribe(source, control.TypeId);
+                (void)QueueSnapshotByType(source, control.TypeId);
+                (void)SendControl(
+                    source,
+                    State::StateProtocol::MessageType::SubscribeAcknowledgement,
+                    control.TypeId
+                );
                 break;
             case State::StateProtocol::MessageType::Unsubscribe:
+                // Unsubscribe is likewise idempotent: absence is already the
+                // requested relationship and is acknowledged as converged.
                 (void)_subscribers.Unsubscribe(source, control.TypeId);
+                (void)SendControl(
+                    source,
+                    State::StateProtocol::MessageType::UnsubscribeAcknowledgement,
+                    control.TypeId
+                );
                 break;
             case State::StateProtocol::MessageType::Resynchronize:
                 if (control.TypeId != 0) {
                     if (_subscribers.IsSubscribed(source, control.TypeId)) (void)QueueSnapshotByType(source, control.TypeId);
                 } else {
-                    _subscribers.ForEachSubscribedType(source, [&](State::StateTypeId typeId) { (void)QueueSnapshotByType(source, typeId); });
+                    _subscribers.ForEachSubscribedType(source, [&](State::StateTypeId typeId) {
+                        (void)QueueSnapshotByType(source, typeId);
+                    });
                 }
                 break;
             case State::StateProtocol::MessageType::Disconnect:
@@ -252,35 +343,52 @@ private:
     }
 
     void Maintain(uint64_t nowMilliseconds) {
-        // Maintenance runs on ESPNowTransportWorker. Pending records contain a
-        // full wire image, so never batch-copy MaximumPending records onto that
-        // worker's stack. Iterate the fixed member storage in-place instead.
-        //
-        // Holding the State mutex across SendRaw also prevents a newer revision
-        // from superseding the selected record between retry selection and the
-        // transport copying the payload. Once ESPNowTransport::Send() returns,
-        // the frame has crossed the State transport boundary and a later State
-        // revision may safely supersede the pending record.
+        // Maintenance runs on ESPNowTransportWorker. Iterate fixed member
+        // storage in-place; never batch-copy full State frames onto this stack.
         std::lock_guard<std::recursive_mutex> lock(_mutex);
+
         for (auto& pending : _pending) {
             if (!pending.Used || pending.Size == 0) continue;
             if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
             pending.LastSendMilliseconds = nowMilliseconds;
             (void)SendRaw(pending.Destination, pending.Payload.data(), pending.Size);
         }
+
+        for (auto& pending : _pendingSubscriptions) {
+            if (!pending.Used) continue;
+            if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
+            pending.LastSendMilliseconds = nowMilliseconds;
+            (void)SendControl(
+                pending.Destination,
+                pending.DesiredSubscribed
+                    ? State::StateProtocol::MessageType::Subscribe
+                    : State::StateProtocol::MessageType::Unsubscribe,
+                pending.TypeId
+            );
+        }
     }
 
     void SendSubscriptionToPeer(const State::DeviceIdentifier& peer, State::StateTypeId typeId, bool subscribe) {
-        (void)SendControl(
-            peer,
-            subscribe ? State::StateProtocol::MessageType::Subscribe : State::StateProtocol::MessageType::Unsubscribe,
-            typeId
-        );
+        (void)SetSubscriptionIntent(peer, typeId, subscribe);
+    }
+
+    void ClearPeerPending(const State::DeviceIdentifier& device) {
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        for (auto& pending : _pending) {
+            if (pending.Used && pending.Destination == device) pending = PendingRecord{};
+        }
+        for (auto& pending : _pendingSubscriptions) {
+            if (pending.Used && pending.Destination == device) pending = PendingSubscriptionRecord{};
+        }
     }
 
 public:
-    ESPNowStateTransport(Publisher& publisher, RemoteManager& remote, Subscriptions& subscriptions, ESPNowTransport& transport = ESPNowTransport::GetInstance())
-        : _transport(transport), _publisher(publisher), _remote(remote), _subscriptions(subscriptions) {}
+    ESPNowStateTransport(
+        Publisher& publisher,
+        RemoteManager& remote,
+        Subscriptions& subscriptions,
+        ESPNowTransport& transport = ESPNowTransport::GetInstance()
+    ) : _transport(transport), _publisher(publisher), _remote(remote), _subscriptions(subscriptions) {}
 
     bool Initialize() {
         if (_initialized) return true;
@@ -307,6 +415,7 @@ public:
         std::lock_guard<std::recursive_mutex> lock(_mutex);
         _peers = {};
         _pending = {};
+        _pendingSubscriptions = {};
         _initialized = false;
     }
 
@@ -324,13 +433,26 @@ public:
         return true;
     }
 
-    bool PeerStale(const MacAddress& address) { return _remote.SetAvailability(DeviceFromMac(address), State::RemoteDeviceAvailability::Stale); }
-    bool PeerLost(const MacAddress& address) { return _remote.SetAvailability(DeviceFromMac(address), State::RemoteDeviceAvailability::ConnectionLost); }
-    bool RequestResynchronization(const MacAddress& address) { return SendControl(DeviceFromMac(address), State::StateProtocol::MessageType::Resynchronize, 0); }
+    bool PeerStale(const MacAddress& address) {
+        return _remote.SetAvailability(DeviceFromMac(address), State::RemoteDeviceAvailability::Stale);
+    }
+
+    bool PeerLost(const MacAddress& address) {
+        const auto device = DeviceFromMac(address);
+        ClearPeerPending(device);
+        (void)_subscribers.Remove(device);
+        return _remote.SetAvailability(device, State::RemoteDeviceAvailability::ConnectionLost);
+    }
+
+    bool RequestResynchronization(const MacAddress& address) {
+        return SendControl(DeviceFromMac(address), State::StateProtocol::MessageType::Resynchronize, 0);
+    }
 
     bool DisconnectPeer(const MacAddress& address) {
         const auto device = DeviceFromMac(address);
         const bool sent = SendControl(device, State::StateProtocol::MessageType::Disconnect, 0);
+        ClearPeerPending(device);
+        (void)_subscribers.Remove(device);
         (void)_remote.SetAvailability(device, State::RemoteDeviceAvailability::Disconnected);
         return sent;
     }
@@ -342,7 +464,11 @@ public:
         });
     }
 
-    void OnStateSubscribed(State::StateTypeId typeId, State::StateSubscriptionScope scope, const State::DeviceIdentifier& device) override {
+    void OnStateSubscribed(
+        State::StateTypeId typeId,
+        State::StateSubscriptionScope scope,
+        const State::DeviceIdentifier& device
+    ) override {
         if (scope == State::StateSubscriptionScope::SpecificDevice) {
             SendSubscriptionToPeer(device, typeId, true);
             return;
@@ -353,10 +479,16 @@ public:
             std::lock_guard<std::recursive_mutex> lock(_mutex);
             for (const auto& peer : _peers) if (peer.Used) peers[count++] = peer.Device;
         }
-        for (std::size_t index = 0; index < count; ++index) SendSubscriptionToPeer(peers[index], typeId, true);
+        for (std::size_t index = 0; index < count; ++index) {
+            SendSubscriptionToPeer(peers[index], typeId, true);
+        }
     }
 
-    void OnStateUnsubscribed(State::StateTypeId typeId, State::StateSubscriptionScope scope, const State::DeviceIdentifier& device) override {
+    void OnStateUnsubscribed(
+        State::StateTypeId typeId,
+        State::StateSubscriptionScope scope,
+        const State::DeviceIdentifier& device
+    ) override {
         if (scope == State::StateSubscriptionScope::SpecificDevice) {
             SendSubscriptionToPeer(device, typeId, false);
             return;
@@ -367,7 +499,9 @@ public:
             std::lock_guard<std::recursive_mutex> lock(_mutex);
             for (const auto& peer : _peers) if (peer.Used) peers[count++] = peer.Device;
         }
-        for (std::size_t index = 0; index < count; ++index) SendSubscriptionToPeer(peers[index], typeId, false);
+        for (std::size_t index = 0; index < count; ++index) {
+            SendSubscriptionToPeer(peers[index], typeId, false);
+        }
     }
 };
 
