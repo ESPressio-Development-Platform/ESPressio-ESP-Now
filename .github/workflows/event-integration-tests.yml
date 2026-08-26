@@ -2,9 +2,7 @@ name: Event Integration
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   event-boundary:
@@ -20,17 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Event, ref: 6.0.3, path: deps/ESPressio-Event}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Event, ref: feature/57-rtti-free-memory-efficiency, path: deps/ESPressio-Event}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: 3.1.7, path: deps/ESPressio-Threads}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: feature/73-memory-efficiency, path: deps/ESPressio-Threads}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: 2.2.8, path: deps/ESPressio-Timing}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: 0.2.7, path: deps/ESPressio-Units}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: 3.0.2, path: deps/ESPressio-Observable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Serializable, ref: 0.11.3, path: deps/ESPressio-Serializable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Serializable, ref: optimisation/25-psram-buffers, path: deps/ESPressio-Serializable}
       - name: Install PlatformIO
         run: pip install platformio
       - name: Create PlatformIO consumer project
@@ -43,7 +41,10 @@ jobs:
           platform = espressif32
           board = esp32dev
           framework = arduino
-          build_flags = -std=gnu++17 -frtti
+          build_flags =
+              -std=gnu++17
+              -frtti
+              -DESPRESSIO_SERIALIZATION_PREFER_PSRAM
           build_unflags = -std=gnu++11 -fno-rtti
           lib_ldf_mode = deep+
           EOF
@@ -59,5 +60,5 @@ jobs:
           void setup() { auto& espNow=ESPNow::ESPNowTransport::GetInstance(); auto& eventTransports=Event::EventTransportManager::GetInstance(); eventTransport.Initialize(espNow); eventTransports.RegisterTransport(&eventTransport); }
           void loop() { delay(10); }
           EOF
-      - name: Compile Event integration against Event 6.0.3
+      - name: Compile Event integration against active Event optimisation branch
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-event-ci"
