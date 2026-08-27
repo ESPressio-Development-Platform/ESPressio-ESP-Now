@@ -71,11 +71,21 @@ jobs:
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
+          #include <type_traits>
           #include <ESPressio_ThreadManager.hpp>
           #include <ESPressio_ESP32WiFi.hpp>
           #include <ESPressio_WiFiWorker.hpp>
           #include <ESPressio_ESPNow.hpp>
           #include <ESPressio_ESPNowWiFiCoordinator.hpp>
+
+          static_assert(std::is_base_of<
+              ESPressio::WiFi::IWiFiRadioObserver,
+              ESPressio::ESPNow::ESPNowWiFiCoordinator
+          >::value, "Coordinator must observe radio lifecycle");
+          static_assert(std::is_base_of<
+              ESPressio::WiFi::IWiFiObserver,
+              ESPressio::ESPNow::ESPNowWiFiCoordinator
+          >::value, "Coordinator must observe AP station topology lifecycle");
 
           class Observer final : public ESPressio::ESPNow::IESPNowTransportObserver {
           public:
@@ -124,6 +134,12 @@ jobs:
               (void)transport.GetLocalEndpointAddress();
               (void)transport.SendDetailed(peer.Address, 64, nullptr, 0);
               (void)transport.GetLastSendResult();
+
+              // Compile the application-level AP station lifecycle path that
+              // forces a native ESP-NOW rebuild/replay on association changes.
+              ESPressio::WiFi::MacAddress station;
+              coordinator.OnAccessPointStationConnected(station);
+              coordinator.OnAccessPointStationDisconnected(station);
           }
           void loop() { delay(1000); }
           EOF
@@ -145,6 +161,9 @@ jobs:
           grep -q 'ReconcileManagedPeers' src/ESPressio_ESPNowTransport.hpp
           grep -q 'ReinitializeNativeState' src/ESPressio_ESPNowTransport.hpp
           grep -q 'ESPNowWiFiCoordinator' src/ESPressio_ESPNowWiFiCoordinator.hpp
+          grep -q 'OnAccessPointStationConnected' src/ESPressio_ESPNowWiFiCoordinator.hpp
+          grep -q 'OnAccessPointStationDisconnected' src/ESPressio_ESPNowWiFiCoordinator.hpp
+          grep -q 'ReconcileAccessPointTopology' src/ESPressio_ESPNowWiFiCoordinator.hpp
           grep -q 'WorkerIterationIntervalMilliseconds' src/ESPressio_ESPNowTypes.hpp
           grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp
           if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then
