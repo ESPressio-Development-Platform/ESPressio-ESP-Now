@@ -140,3 +140,24 @@ Encrypted Command/Event hardware traces showed that the transport worker could s
 - `21f4c97` — `test(#47): prove inbound Command handoff is asynchronous and bounded`
 - `23e94b7` — `test(#47): add asynchronous Command handoff regression target`
 - `d3a97cf` — `test(#47): validate async handoff against coordinated working branches`
+
+## 2026-08-27 — System-backed ESP-NOW bookkeeping and reconciliation (#49)
+
+Phase 8 of the coordinated memory-policy programme externalises ESPressio-owned bookkeeping while deliberately leaving native WiFi/ESP-NOW and RTOS callback infrastructure internal.
+
+### Changes
+- protocol-handler, maintenance-handler, peer-interface-hint and managed-peer backing storage now uses ESPressio-System `ExternalPreferred` memory;
+- registered protocol and maintenance callbacks are held in externally allocated stable shared objects, so dispatch snapshots only a `shared_ptr` instead of copying the stored `std::function` on every cycle;
+- managed-peer reconciliation scratch moved off the transport worker stack into external-preferred storage;
+- the State adapter's peer, pending-State-retry and pending-subscription tables moved to external-preferred storage;
+- State adapter peer iteration scratch moved off the worker/caller stack;
+- the upstream State subscriber registry now provides externally backed subscriber bookkeeping as part of State #10;
+- `library.json` resolves ESPressio-System from `feature/1-system-memory-policy` during coordinated validation.
+
+### Deliberately unchanged
+The FreeRTOS receive queue, callback frame copied through that queue, native ESP-NOW/WiFi driver allocations and the immediate native TX frame remain internal because they participate directly in driver/callback/RTOS execution.
+
+### Commits
+- `3bcd5fa` — State-adapter bookkeeping migration
+- `dffb694` — transport registry/callback/reconciliation migration
+- `99fdde9` — working-branch System dependency metadata
