@@ -21,6 +21,10 @@ target_compile_options(test_security_protocol PRIVATE -Wall -Wextra -Wpedantic -
 target_include_directories(test_security_protocol PRIVATE stubs ../src)
 add_test(NAME ESPNowSecurityProtocol COMMAND test_security_protocol)
 
+if(NOT ESPRESSIO_SYSTEM_INCLUDE_DIR)
+    message(FATAL_ERROR "ESPRESSIO_SYSTEM_INCLUDE_DIR is required")
+endif()
+
 if(NOT ESPRESSIO_COMMAND_INCLUDE_DIR)
     message(FATAL_ERROR "ESPRESSIO_COMMAND_INCLUDE_DIR is required")
 endif()
@@ -34,6 +38,7 @@ target_compile_features(test_command_transport PRIVATE cxx_std_17)
 target_compile_options(test_command_transport PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_include_directories(test_command_transport PRIVATE
     ../src
+    ${ESPRESSIO_SYSTEM_INCLUDE_DIR}
     ${ESPRESSIO_COMMAND_INCLUDE_DIR}
     ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
 )
@@ -44,6 +49,7 @@ target_compile_features(test_async_command_handoff PRIVATE cxx_std_17)
 target_compile_options(test_async_command_handoff PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_include_directories(test_async_command_handoff PRIVATE
     ../src
+    ${ESPRESSIO_SYSTEM_INCLUDE_DIR}
     ${ESPRESSIO_COMMAND_INCLUDE_DIR}
     ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
 )
@@ -55,6 +61,7 @@ target_compile_options(test_observer_contract PRIVATE -Wall -Wextra -Wpedantic -
 target_include_directories(test_observer_contract PRIVATE
     stubs
     ../src
+    ${ESPRESSIO_SYSTEM_INCLUDE_DIR}
     ${ESPRESSIO_OBSERVABLE_INCLUDE_DIR}
 )
 add_test(NAME ESPNowObserverContract COMMAND test_observer_contract)
