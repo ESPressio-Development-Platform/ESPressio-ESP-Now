@@ -15,6 +15,11 @@
     "platforms": "espressif32",
     "dependencies": [
         {
+            "name":"ESPressio-System",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-System.git#feature/1-system-memory-policy",
+            "platforms":"*"
+        },
+        {
             "name":"ESPressio-Task",
             "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#feature/1-task-execution",
             "platforms":"espressif32"
