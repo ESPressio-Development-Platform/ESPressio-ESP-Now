@@ -11,6 +11,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
+          repository: ESPressio-Development-Platform/ESPressio-System
+          ref: feature/1-system-memory-policy
+          path: deps/ESPressio-System
+      - uses: actions/checkout@v4
+        with:
           repository: ESPressio-Development-Platform/ESPressio-Command
           ref: feature/30-async-command-routing
           path: deps/ESPressio-Command
@@ -22,6 +27,7 @@ jobs:
       - name: Configure
         run: >-
           cmake -S tests -B build
+          -DESPRESSIO_SYSTEM_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-System/src"
           -DESPRESSIO_COMMAND_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Command/src"
           -DESPRESSIO_OBSERVABLE_INCLUDE_DIR="$GITHUB_WORKSPACE/deps/ESPressio-Observable/src"
       - name: Build
@@ -62,6 +68,11 @@ jobs:
           path: project/ESPressio-ESPNow
       - uses: actions/checkout@v4
         with:
+          repository: ESPressio-Development-Platform/ESPressio-System
+          ref: feature/1-system-memory-policy
+          path: project/dependencies/ESPressio-System
+      - uses: actions/checkout@v4
+        with:
           repository: ESPressio-Development-Platform/ESPressio-Task
           ref: feature/1-task-execution
           path: project/dependencies/ESPressio-Task
@@ -78,7 +89,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ESPressio-Development-Platform/ESPressio-Security
-          ref: main
+          ref: optimisation/23-memory-policy-transient-buffers
           path: project/dependencies/ESPressio-Security
       - uses: actions/checkout@v4
         with:
@@ -133,6 +144,7 @@ jobs:
               -frtti
           lib_ldf_mode = deep+
           lib_deps =
+              ../dependencies/ESPressio-System
               ../dependencies/ESPressio-Observable
               ../dependencies/ESPressio-Serializable
               ../dependencies/ESPressio-Units
