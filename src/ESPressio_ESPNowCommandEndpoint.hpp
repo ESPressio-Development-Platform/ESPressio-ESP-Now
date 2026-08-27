@@ -102,11 +102,8 @@ public:
             _pending.size() >= _config.MaximumOutstandingRequests) return false;
         uint64_t id = _nextRequestID++;
         if (id == 0) id = _nextRequestID++;
-        ESPNowCommandProtocol::Request request;
-        request.RequestID = id;
-        request.Invocation = invocation;
         std::vector<uint8_t> payload;
-        if (!ESPNowCommandProtocol::EncodeRequest(request, payload) || payload.empty() ||
+        if (!ESPNowCommandProtocol::EncodeRequest(invocation, payload) || payload.empty() ||
             payload.size() > _config.MaximumMessageBytes) return false;
         PendingRequest pending;
         pending.Peer = peer;
@@ -192,7 +189,7 @@ public:
         result.code = response.Code;
         result.message = response.MessageString();
 
-        ESPNowCommandInvocationContext context = inbound->Context;
+        ESPNowCommandInvocationContext context = std::move(inbound->Context);
         RemoveInbound(inbound);
         if (_observer) _observer(context, result);
         return SendResponseAndCache(peer, response.RequestId, result, nowMilliseconds);
@@ -387,6 +384,9 @@ private:
             inbound.Context = context;
             _inbound.push_back(std::move(inbound));
 
+            // The context copy above is intentional: the stored request must
+            // exist before invoking a potentially re-entrant handler, while the
+            // handler itself observes the stable local context for this call.
             if (_inboundHandler(context)) {
                 return true;
             }
@@ -407,14 +407,12 @@ private:
 
     bool SendResponseAndCache(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
                               const Command::CommandResult& result, uint64_t nowMilliseconds) {
-        ESPNowCommandProtocol::Response response;
-        response.RequestID = requestID;
-        response.Result = result;
         std::vector<uint8_t> payload;
-        if (!ESPNowCommandProtocol::EncodeResponse(response, payload) || payload.empty() ||
+        if (!ESPNowCommandProtocol::EncodeResponse(result, payload) || payload.empty() ||
             payload.size() > _config.MaximumMessageBytes) return false;
-        StoreDuplicate(peer, requestID, nowMilliseconds, payload);
-        return SendPayload(peer, ESPNowCommandMessageType::Response, requestID, payload);
+        auto* cached = StoreDuplicate(peer, requestID, nowMilliseconds, std::move(payload));
+        return cached != nullptr &&
+            SendPayload(peer, ESPNowCommandMessageType::Response, requestID, cached->EncodedResponse);
     }
 
     bool HandleResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID, const std::vector<uint8_t>& payload) {
