@@ -161,3 +161,20 @@ The FreeRTOS receive queue, callback frame copied through that queue, native ESP
 - `3bcd5fa` — State-adapter bookkeeping migration
 - `dffb694` — transport registry/callback/reconciliation migration
 - `99fdde9` — working-branch System dependency metadata
+
+## 2026-08-27 — Phase 11 Command endpoint ownership audit (#50)
+
+The suite-wide ownership pass classified each Command endpoint copy by lifetime rather than mechanically applying `std::move`.
+
+### Removed copies
+- outbound invocation encoding now accepts `const CommandInvocation&` directly, eliminating the temporary `Request` wrapper's deep invocation copy;
+- response encoding accepts `const CommandResult&` directly, eliminating the temporary response-result copy;
+- `CompleteInbound()` moves the invocation context from the inbound record immediately before that record is erased;
+- encoded responses move into the duplicate-result cache, and transmission uses the newly cached payload, eliminating the second full encoded-response copy while preserving cache-before-send behavior.
+
+### Deliberately retained
+The async inbound handoff retains one context copy: the authoritative request record must exist in `_inbound` before invoking a potentially re-entrant handler, while that handler receives the stable local context for the duration of the call. Moving either object would change that lifetime guarantee.
+
+### Commits
+- `91cacfb` — `perf(#50): encode Command payloads without wrapper copies`
+- `7f59111` — `perf(#50): move retired Command endpoint payload ownership`
