@@ -178,3 +178,26 @@ The async inbound handoff retains one context copy: the authoritative request re
 ### Commits
 - `91cacfb` — `perf(#50): encode Command payloads without wrapper copies`
 - `7f59111` — `perf(#50): move retired Command endpoint payload ownership`
+
+## 2026-08-27 — AP station topology reconciliation (#44)
+
+### Hardware evidence
+A paired long-running Lab soak isolated a persistent one-way ESP-NOW failure after a phone associated with StickA's access point. StickA continued receiving StickB State and inbound Commands, and continued executing those Commands successfully, while StickA's outbound native sends began failing across State, Command, Timing and eventually discovery traffic. StickB continued transmitting successfully for a substantial period and eventually expired StickA because no valid traffic returned. Disconnecting the phone did not recover StickA's outbound path.
+
+### Root integration gap
+The existing coordinator already treats actual WiFi radio transitions transactionally, but AP station association/disassociation does not change `WiFiRadioState` mode/channel facts and therefore does not produce that transition boundary. ESPressio-WiFi exposes AP station topology separately through `IWiFiObserver`.
+
+### Change
+- `ESPNowWiFiCoordinator` now observes both `IWiFiRadioObserver` and `IWiFiObserver`.
+- `OnAccessPointStationConnected` and `OnAccessPointStationDisconnected` force the existing controlled native ESP-NOW reinitialization path and replay all retained managed peers against the current authoritative WiFi radio state.
+- Logical peers, encryption keys, protocol handlers, worker state and higher-level transport state are preserved.
+- No send-retry shim, peer-table duplicate or protocol-specific recovery path was added.
+- The ESP32 coexistence compile guards both observer relationships and explicitly compiles both topology callbacks.
+
+### Commits
+- `e1c3801` — `fix(espnow): reconcile native peers on AP station topology changes (#44)`
+- `b95bc07` — `test(espnow): guard AP station topology reconciliation (#44)`
+- `fe0436e` — `docs(espnow): preserve abstraction audit history for #44`
+
+### Validation status
+Issue #44 remains open pending hardware validation of sustained bidirectional traffic before association, during AP-client association, after disassociation, and through an extended soak. No version or release numbering changed.
