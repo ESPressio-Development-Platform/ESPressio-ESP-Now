@@ -19,6 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
+        with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: feature/1-system-memory-policy, path: deps/ESPressio-System}
+      - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: feature/1-task-execution, path: deps/ESPressio-Task}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Event, ref: feature/57-rtti-free-memory-efficiency, path: deps/ESPressio-Event}
@@ -40,7 +42,7 @@ jobs:
           PROJECT="$RUNNER_TEMP/espressio-espnow-event-ci"
           mkdir -p "$PROJECT/src" "$PROJECT/lib/ESPressio-ESPNow"
           cp -R src "$PROJECT/lib/ESPressio-ESPNow/src"
-          for DEP in ESPressio-Task ESPressio-Event ESPressio-Threads ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Serializable; do
+          for DEP in ESPressio-System ESPressio-Task ESPressio-Event ESPressio-Threads ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Serializable; do
             mkdir -p "$PROJECT/lib/$DEP"
             cp -R "deps/$DEP/src" "$PROJECT/lib/$DEP/src"
           done
