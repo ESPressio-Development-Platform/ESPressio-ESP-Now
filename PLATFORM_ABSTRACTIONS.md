@@ -22,6 +22,17 @@ These now consume ESPressio-System directly:
 
 No ESP-NOW transport or protocol semantics were generalized as part of this migration.
 
+### Worker configuration
+- Hardware Lab validation exposed that `ESPNowTransportConfig` still leaked FreeRTOS task types after the runtime migration.
+- `ReceiveTaskPriority` now uses portable `uint32_t` and `ReceiveTaskCore` uses portable `int32_t`, with `-1` representing no specific processor affinity.
+- The worker continues to delegate priority/core configuration through ESPressio-Threads; no FreeRTOS task type remains necessary in the public transport configuration.
+
+### Hardware regression correction
+- StickA and StickB both failed before native `esp_now_init()` became operational, regardless of whether ESPressio-WiFi/AP passwording was enabled.
+- The visible ESP-IDF `esp now not init!` diagnostic was produced during failed-initialization cleanup and was not the original cause.
+- The associated global Thread failures exposed a provider-installation ordering hazard in System synchronization. System now supplies deferred binary signals so globally constructed Threads can bind to the concrete synchronization provider when they initialize after application bootstrap.
+- ESP-NOW issue #52 remains open until hardware validation confirms worker initialization, native ESP-NOW initialization, peer discovery and downstream Event/State transport operation.
+
 ### WiFi coexistence
 - The existing `ESPNowWiFiCoordinator` already consumes ESPressio-WiFi radio-state and observer concepts for coordinated WiFi/ESP-NOW ownership.
 - Direct native radio interrogation used for standalone ESP-NOW fallback remains acceptable where no WiFi manager is present; it must not duplicate higher-level WiFi lifecycle policy.
