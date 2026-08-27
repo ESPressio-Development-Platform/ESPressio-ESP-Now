@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <cstring>
 
-#include <freertos/FreeRTOS.h>
-
 #include <ESPressio_ClockSynchronization.hpp>
 
 namespace ESPressio {
@@ -84,8 +82,8 @@ struct ESPNowTransportConfig {
     bool InitializeWiFi = true;
     uint8_t Channel = 0;
     uint32_t ReceiveTaskStackSize = 4096;
-    UBaseType_t ReceiveTaskPriority = 2;
-    BaseType_t ReceiveTaskCore = tskNO_AFFINITY;
+    uint32_t ReceiveTaskPriority = 2;
+    int32_t ReceiveTaskCore = -1;
     std::size_t ReceiveQueueLength = 6;
     uint32_t WorkerIterationIntervalMilliseconds = 5;
 };
