@@ -52,19 +52,23 @@ public:
         Command::CommandResult Result;
     };
 
-    static bool EncodeRequest(const Request& request, std::vector<uint8_t>& output) {
+    static bool EncodeRequest(const Command::CommandInvocation& invocation, std::vector<uint8_t>& output) {
         output.clear();
-        if (request.Invocation.path.empty()) return false;
-        AppendU16(output, request.Invocation.path.size());
-        for (const auto& part : request.Invocation.path) if (!AppendString(output, part)) return false;
-        AppendU16(output, request.Invocation.positional.size());
-        for (const auto& value : request.Invocation.positional) if (!AppendCommandValue(output, value)) return false;
-        AppendU16(output, request.Invocation.named.size());
-        for (const auto& item : request.Invocation.named) {
+        if (invocation.path.empty()) return false;
+        AppendU16(output, invocation.path.size());
+        for (const auto& part : invocation.path) if (!AppendString(output, part)) return false;
+        AppendU16(output, invocation.positional.size());
+        for (const auto& value : invocation.positional) if (!AppendCommandValue(output, value)) return false;
+        AppendU16(output, invocation.named.size());
+        for (const auto& item : invocation.named) {
             if (!AppendString(output, item.first)) return false;
             if (!AppendCommandValue(output, item.second)) return false;
         }
-        return AppendString(output, request.Invocation.raw);
+        return AppendString(output, invocation.raw);
+    }
+
+    static bool EncodeRequest(const Request& request, std::vector<uint8_t>& output) {
+        return EncodeRequest(request.Invocation, output);
     }
 
     static bool DecodeRequest(uint64_t requestID, const uint8_t* data, std::size_t size, Request& output) {
@@ -96,11 +100,15 @@ public:
         return true;
     }
 
-    static bool EncodeResponse(const Response& response, std::vector<uint8_t>& output) {
+    static bool EncodeResponse(const Command::CommandResult& result, std::vector<uint8_t>& output) {
         output.clear();
-        output.push_back(response.Result.success ? 1u : 0u);
-        AppendI32(output, response.Result.code);
-        return AppendString(output, response.Result.message);
+        output.push_back(result.success ? 1u : 0u);
+        AppendI32(output, result.code);
+        return AppendString(output, result.message);
+    }
+
+    static bool EncodeResponse(const Response& response, std::vector<uint8_t>& output) {
+        return EncodeResponse(response.Result, output);
     }
 
     static bool DecodeResponse(uint64_t requestID, const uint8_t* data, std::size_t size, Response& output) {
