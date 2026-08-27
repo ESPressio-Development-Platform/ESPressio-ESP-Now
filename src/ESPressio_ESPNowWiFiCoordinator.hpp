@@ -8,6 +8,7 @@
 #include <mutex>
 
 #include <ESPressio_WiFi.hpp>
+#include <ESPressio_IWiFiObserver.hpp>
 #include <ESPressio_IWiFiRadioObserver.hpp>
 
 #include "ESPressio_ESPNowTransport.hpp"
@@ -16,11 +17,14 @@ namespace ESPressio {
 namespace ESPNow {
 
 // Optional integration layer between ESPressio WiFi and ESP-NOW. WiFi owns
-// the shared radio. This coordinator subscribes directly to WiFi's low-level
-// radio lifecycle and keeps ESP-NOW's logical peers aligned with the currently
-// useful interface/channel. Standalone ESP-NOW users simply do not include
-// this header and retain the native/Arduino-WiFi behavior.
-class ESPNowWiFiCoordinator final : public WiFi::IWiFiRadioObserver {
+// the shared radio. This coordinator subscribes to both WiFi's low-level radio
+// lifecycle and the AP-station topology lifecycle so ESP-NOW's native state
+// stays aligned with the currently useful interface/channel. Standalone
+// ESP-NOW users simply do not include this header and retain native/Arduino-
+// WiFi behavior.
+class ESPNowWiFiCoordinator final :
+    public WiFi::IWiFiRadioObserver,
+    public WiFi::IWiFiObserver {
 public:
     ESPNowWiFiCoordinator(
         ESPNowTransport& transport,
@@ -34,17 +38,27 @@ public:
 
     bool Initialize() {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
-        if (_observerHandle) return ApplyState(_wifiManager.RadioState(), false);
+        if (_radioObserverHandle && _wifiObserverHandle) {
+            return ApplyState(_wifiManager.RadioState(), false);
+        }
         if (!_transport.GetIsInitialized()) return false;
 
-        _observerHandle = _wifiManager.RegisterRadioObserver(this);
-        if (!_observerHandle) return false;
+        _radioObserverHandle = _wifiManager.RegisterRadioObserver(this);
+        if (!_radioObserverHandle) return false;
+
+        _wifiObserverHandle = _wifiManager.RegisterObserver(this);
+        if (!_wifiObserverHandle) {
+            _radioObserverHandle.reset();
+            return false;
+        }
+
         return ApplyState(_wifiManager.RadioState(), false);
     }
 
     void Shutdown() {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
-        _observerHandle.reset();
+        _wifiObserverHandle.reset();
+        _radioObserverHandle.reset();
         _haveSnapshot = false;
         _scanSuspended = false;
         _nativeStateInvalidated = false;
@@ -53,7 +67,8 @@ public:
 
     bool IsInitialized() const noexcept {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
-        return static_cast<bool>(_observerHandle);
+        return static_cast<bool>(_radioObserverHandle) &&
+            static_cast<bool>(_wifiObserverHandle);
     }
 
     ESPNowRadioBinding CurrentBinding() const {
@@ -137,7 +152,28 @@ public:
         (void)ApplyState(after, false);
     }
 
+    void OnAccessPointStationConnected(const WiFi::MacAddress&) override {
+        ReconcileAccessPointTopology();
+    }
+
+    void OnAccessPointStationDisconnected(const WiFi::MacAddress&) override {
+        ReconcileAccessPointTopology();
+    }
+
 private:
+    void ReconcileAccessPointTopology() {
+        std::lock_guard<std::recursive_mutex> lock(_stateMutex);
+        if (!_transport.GetIsInitialized() || _transitionSuspendedNativeState) return;
+
+        // AP station association/disassociation is not a WiFiRadioState mode or
+        // channel transition, but ESP-IDF may alter the operational SoftAP
+        // interface underneath ESP-NOW. Rebuild the native ESP-NOW attachment
+        // and replay logical peers so a previously valid AP-bound peer cannot
+        // become permanently transmit-dead after a station topology change.
+        _nativeStateInvalidated = true;
+        (void)ApplyState(_wifiManager.RadioState(), true);
+    }
+
     bool ApplyState(
         const WiFi::WiFiRadioState& state,
         bool forceNativeReinitialization
@@ -204,7 +240,8 @@ private:
     ESPNowTransport& _transport;
     WiFi::WiFiManager& _wifiManager;
     mutable std::recursive_mutex _stateMutex;
-    Observable::ObserverHandlePtr _observerHandle;
+    Observable::ObserverHandlePtr _radioObserverHandle;
+    Observable::ObserverHandlePtr _wifiObserverHandle;
     WiFi::WiFiRadioMode _lastRadioMode = WiFi::WiFiRadioMode::Off;
     ESPNowWiFiInterface _lastPreferredInterface = ESPNowWiFiInterface::Auto;
     uint8_t _lastChannel = 0;
