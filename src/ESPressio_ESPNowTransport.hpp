@@ -15,16 +15,14 @@
 #include <esp_err.h>
 #include <esp_idf_version.h>
 #include <esp_now.h>
-#include <esp_timer.h>
 #include <esp_wifi.h>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-#include <freertos/task.h>
-
+#include <ESPressio_Execution.hpp>
 #include <ESPressio_Memory.hpp>
 #include <ESPressio_PrecisionThread.hpp>
 #include <ESPressio_PrecisionThreadTraits.hpp>
+#include <ESPressio_Queue.hpp>
+#include <ESPressio_SystemPlatformClock.hpp>
 #include <ESPressio_ThreadSafeObservable.hpp>
 #include <ESPressio_Time.hpp>
 
@@ -135,7 +133,8 @@ private:
         uint32_t MinimumFreeStackBytes() const noexcept { return _minimumFreeStackBytes.load(std::memory_order_acquire); }
     protected:
         void Iterate(Time, Time, Threads::SkippedIterationCount) override {
-            const uint32_t freeBytes = static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
+            auto& execution = System::Execution::Provider();
+            const uint32_t freeBytes = execution.MinimumFreeStackBytes(execution.Current());
             uint32_t previous = _minimumFreeStackBytes.load(std::memory_order_relaxed);
             while ((previous == 0 || freeBytes < previous) &&
                    !_minimumFreeStackBytes.compare_exchange_weak(previous, freeBytes,
@@ -148,7 +147,7 @@ private:
     };
 
     ESPNowTransportConfig _config;
-    QueueHandle_t _receiveQueue = nullptr; // Native callback queue: deliberately internal.
+    std::unique_ptr<System::Queue::IMessageQueue> _receiveQueue;
     std::unique_ptr<TransportWorker> _worker;
     HandlerStorage _handlers;
     mutable std::mutex _handlerMutex;
@@ -183,7 +182,7 @@ private:
     }
 
     static uint64_t GetRawMonotonicNanoseconds() {
-        return static_cast<uint64_t>(esp_timer_get_time()) * 1000ULL;
+        return System::Clock::Monotonic().NowNanoseconds();
     }
 
     static ESPNowSendFailure ClassifySendFailure(esp_err_t error) {
@@ -422,7 +421,7 @@ private:
 
     void ProcessWorkerIteration() {
         CallbackFrame frame;
-        while (_receiveQueue != nullptr && xQueueReceive(_receiveQueue, &frame, 0) == pdTRUE) {
+        while (_receiveQueue != nullptr && static_cast<bool>(_receiveQueue->Receive(&frame, 0))) {
             ProcessCallbackFrame(frame);
         }
 
@@ -457,7 +456,7 @@ private:
         frame.Length = static_cast<uint16_t>(length > static_cast<int>(MaximumFrameSize) ? MaximumFrameSize : length);
         frame.HasLocalInterface = ResolveLocalInterface(destination, frame.LocalInterface);
         std::memcpy(frame.Data, data, frame.Length);
-        (void)xQueueSend(self->_receiveQueue, &frame, 0);
+        (void)self->_receiveQueue->Send(&frame, 0);
     }
 
 #if ESP_IDF_VERSION_MAJOR >= 5
@@ -482,7 +481,7 @@ private:
         esp_now_unregister_recv_cb();
         esp_now_deinit();
         if (_worker) { _worker->Shutdown(); _worker.reset(); }
-        if (_receiveQueue != nullptr) { vQueueDelete(_receiveQueue); _receiveQueue = nullptr; }
+        _receiveQueue.reset();
         _initialized.store(false, std::memory_order_release);
     }
 
@@ -512,7 +511,7 @@ public:
             _observable->InitializationFailed();
             return false;
         }
-        _receiveQueue = xQueueCreate(_config.ReceiveQueueLength, sizeof(CallbackFrame));
+        _receiveQueue = System::Queue::Create<CallbackFrame>(_config.ReceiveQueueLength);
         if (_receiveQueue == nullptr) { _observable->InitializationFailed(); return false; }
         _worker = std::make_unique<TransportWorker>(*this);
         _worker->Configure(_config);
@@ -568,7 +567,7 @@ public:
             esp_now_deinit();
         }
         if (_worker) { _worker->Shutdown(); _worker.reset(); }
-        if (_receiveQueue != nullptr) { vQueueDelete(_receiveQueue); _receiveQueue = nullptr; }
+        _receiveQueue.reset();
         { std::lock_guard<std::mutex> lock(_handlerMutex); for (auto& record : _handlers) record = HandlerRecord{}; }
         { std::lock_guard<std::mutex> lock(_maintenanceMutex); for (auto& record : _maintenanceHandlers) record = MaintenanceRecord{}; }
         { std::lock_guard<std::mutex> lock(_peerInterfaceMutex); for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{}; }
