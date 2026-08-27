@@ -5,12 +5,14 @@
 #endif
 
 #include <array>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <tuple>
 #include <utility>
 
+#include <ESPressio_Memory.hpp>
 #include <ESPressio_State.hpp>
 
 #include "ESPressio_ESPNowTransport.hpp"
@@ -44,8 +46,6 @@ private:
         State::DeviceIdentifier Device{};
     };
 
-    // State is absolute: retain only retry identity, never an encoded historical
-    // frame. A retry snapshots and sends the latest authoritative revision.
     struct PendingRecord {
         bool Used = false;
         State::DeviceIdentifier Destination{};
@@ -63,14 +63,31 @@ private:
         uint64_t LastSendMilliseconds = 0;
     };
 
+    using PeerStorage = System::Memory::Vector<
+        PeerRecord,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >;
+    using PendingStorage = System::Memory::Vector<
+        PendingRecord,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >;
+    using PendingSubscriptionStorage = System::Memory::Vector<
+        PendingSubscriptionRecord,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >;
+    using DeviceSnapshotStorage = System::Memory::Vector<
+        State::DeviceIdentifier,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >;
+
     ESPNowTransport& _transport;
     Publisher& _publisher;
     RemoteManager& _remote;
     Subscriptions& _subscriptions;
     State::StateSubscriberRegistry<TContract, TMaximumPeers> _subscribers;
-    std::array<PeerRecord, TMaximumPeers> _peers{};
-    std::array<PendingRecord, MaximumPending> _pending{};
-    std::array<PendingSubscriptionRecord, MaximumPending> _pendingSubscriptions{};
+    PeerStorage _peers;
+    PendingStorage _pending;
+    PendingSubscriptionStorage _pendingSubscriptions;
     Observable::ObserverHandlePtr _publisherHandle;
     Observable::ObserverHandlePtr _subscriptionHandle;
     mutable std::recursive_mutex _mutex;
@@ -334,8 +351,7 @@ private:
             control.Type == State::StateProtocol::MessageType::SubscribeAcknowledgement;
         std::lock_guard<std::recursive_mutex> lock(_mutex);
         auto* pending = PendingSubscriptionLocked(source, control.TypeId, false);
-        if (pending == nullptr ||
-            pending->DesiredSubscribed != acknowledgedSubscribed) return;
+        if (pending == nullptr || pending->DesiredSubscribed != acknowledgedSubscribed) return;
         *pending = PendingSubscriptionRecord{};
     }
 
@@ -351,29 +367,22 @@ private:
     void ClearPeerPending(const State::DeviceIdentifier& device) {
         std::lock_guard<std::recursive_mutex> lock(_mutex);
         for (auto& pending : _pending) {
-            if (pending.Used && pending.Destination == device) {
-                pending = PendingRecord{};
-            }
+            if (pending.Used && pending.Destination == device) pending = PendingRecord{};
         }
         for (auto& pending : _pendingSubscriptions) {
-            if (pending.Used && pending.Destination == device) {
-                pending = PendingSubscriptionRecord{};
-            }
+            if (pending.Used && pending.Destination == device) pending = PendingSubscriptionRecord{};
         }
     }
 
     void HandleControl(const ESPNowReceivedFrame& frame) {
         State::StateProtocol::ControlMessage control;
-        if (!State::StateProtocol::DecodeControl(
-                frame.Payload, frame.PayloadLength, control)) return;
+        if (!State::StateProtocol::DecodeControl(frame.Payload, frame.PayloadLength, control)) return;
         const auto source = DeviceFromMac(frame.Source);
         if (control.Device != source) return;
         (void)RememberPeer(frame.Source);
 
-        if (
-            control.Type == State::StateProtocol::MessageType::SubscribeAcknowledgement ||
-            control.Type == State::StateProtocol::MessageType::UnsubscribeAcknowledgement
-        ) {
+        if (control.Type == State::StateProtocol::MessageType::SubscribeAcknowledgement ||
+            control.Type == State::StateProtocol::MessageType::UnsubscribeAcknowledgement) {
             HandleSubscriptionAcknowledgement(frame, control);
             return;
         }
@@ -382,20 +391,12 @@ private:
             case State::StateProtocol::MessageType::Subscribe:
                 (void)_subscribers.Subscribe(source, control.TypeId);
                 (void)QueueSnapshotByType(source, control.TypeId);
-                (void)SendControl(
-                    source,
-                    State::StateProtocol::MessageType::SubscribeAcknowledgement,
-                    control.TypeId
-                );
+                (void)SendControl(source, State::StateProtocol::MessageType::SubscribeAcknowledgement, control.TypeId);
                 break;
             case State::StateProtocol::MessageType::Unsubscribe:
                 (void)_subscribers.Unsubscribe(source, control.TypeId);
                 ClearPendingState(source, control.TypeId);
-                (void)SendControl(
-                    source,
-                    State::StateProtocol::MessageType::UnsubscribeAcknowledgement,
-                    control.TypeId
-                );
+                (void)SendControl(source, State::StateProtocol::MessageType::UnsubscribeAcknowledgement, control.TypeId);
                 break;
             case State::StateProtocol::MessageType::Resynchronize:
                 if (control.TypeId != 0) {
@@ -403,20 +404,15 @@ private:
                         (void)QueueSnapshotByType(source, control.TypeId);
                     }
                 } else {
-                    _subscribers.ForEachSubscribedType(
-                        source,
-                        [&](State::StateTypeId typeId) {
-                            (void)QueueSnapshotByType(source, typeId);
-                        }
-                    );
+                    _subscribers.ForEachSubscribedType(source, [&](State::StateTypeId typeId) {
+                        (void)QueueSnapshotByType(source, typeId);
+                    });
                 }
                 break;
             case State::StateProtocol::MessageType::Disconnect:
                 (void)_subscribers.Remove(source);
                 ClearPeerPending(source);
-                (void)_remote.SetAvailability(
-                    source, State::RemoteDeviceAvailability::Disconnected
-                );
+                (void)_remote.SetAvailability(source, State::RemoteDeviceAvailability::Disconnected);
                 break;
             default:
                 break;
@@ -425,45 +421,28 @@ private:
 
     void HandleFrame(const ESPNowReceivedFrame& frame) {
         State::StateProtocol::MessageType type;
-        if (!State::StateProtocol::GetMessageType(
-                frame.Payload, frame.PayloadLength, type)) return;
-        if (type == State::StateProtocol::MessageType::Update) {
-            HandleUpdate(frame);
-        } else if (type == State::StateProtocol::MessageType::Acknowledgement) {
-            HandleAcknowledgement(frame);
-        } else {
-            HandleControl(frame);
-        }
+        if (!State::StateProtocol::GetMessageType(frame.Payload, frame.PayloadLength, type)) return;
+        if (type == State::StateProtocol::MessageType::Update) HandleUpdate(frame);
+        else if (type == State::StateProtocol::MessageType::Acknowledgement) HandleAcknowledgement(frame);
+        else HandleControl(frame);
     }
 
     void Maintain(uint64_t nowMilliseconds) {
-        // Never retain/copy full State wire frames. A retry re-snapshots the
-        // authoritative source, so an obsolete pending revision is coalesced
-        // into the newest current State automatically.
         std::lock_guard<std::recursive_mutex> lock(_mutex);
-
         for (auto& pending : _pending) {
             if (!pending.Used) continue;
-            if (!_subscribers.IsSubscribed(
-                    pending.Destination, pending.TypeId)) {
+            if (!_subscribers.IsSubscribed(pending.Destination, pending.TypeId)) {
                 pending = PendingRecord{};
                 continue;
             }
-            if (nowMilliseconds - pending.LastSendMilliseconds <
-                ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
-
+            if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
             const auto destination = pending.Destination;
             const auto typeId = pending.TypeId;
-            if (!QueueSnapshotByType(destination, typeId)) {
-                // A missing local source cannot ever satisfy this pending retry.
-                pending = PendingRecord{};
-            }
+            if (!QueueSnapshotByType(destination, typeId)) pending = PendingRecord{};
         }
-
         for (auto& pending : _pendingSubscriptions) {
             if (!pending.Used) continue;
-            if (nowMilliseconds - pending.LastSendMilliseconds <
-                ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
+            if (nowMilliseconds - pending.LastSendMilliseconds < ESPRESSIO_ESPNOW_STATE_RETRY_INTERVAL_MS) continue;
             pending.LastSendMilliseconds = nowMilliseconds;
             (void)SendControl(
                 pending.Destination,
@@ -483,6 +462,16 @@ private:
         (void)SetSubscriptionIntent(peer, typeId, subscribe);
     }
 
+    DeviceSnapshotStorage PeerDeviceSnapshot() const {
+        DeviceSnapshotStorage peers;
+        peers.reserve(TMaximumPeers);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        for (const auto& peer : _peers) {
+            if (peer.Used) peers.push_back(peer.Device);
+        }
+        return peers;
+    }
+
 public:
     ESPNowStateTransport(
         Publisher& publisher,
@@ -492,7 +481,10 @@ public:
     ) : _transport(transport),
         _publisher(publisher),
         _remote(remote),
-        _subscriptions(subscriptions) {}
+        _subscriptions(subscriptions),
+        _peers(TMaximumPeers),
+        _pending(MaximumPending),
+        _pendingSubscriptions(MaximumPending) {}
 
     bool Initialize() {
         if (_initialized) return true;
@@ -513,8 +505,7 @@ public:
         _subscriptionHandle = _subscriptions.RegisterObserver(
             static_cast<State::IStateSubscriptionRegistryObserver*>(this)
         );
-        _initialized = static_cast<bool>(_publisherHandle) &&
-            static_cast<bool>(_subscriptionHandle);
+        _initialized = static_cast<bool>(_publisherHandle) && static_cast<bool>(_subscriptionHandle);
         if (!_initialized) Shutdown();
         return _initialized;
     }
@@ -527,9 +518,13 @@ public:
             static_cast<uint8_t>(ESPNowProtocol::StateTransport)
         );
         std::lock_guard<std::recursive_mutex> lock(_mutex);
-        _peers = {};
-        _pending = {};
-        _pendingSubscriptions = {};
+        std::fill(_peers.begin(), _peers.end(), PeerRecord{});
+        std::fill(_pending.begin(), _pending.end(), PendingRecord{});
+        std::fill(
+            _pendingSubscriptions.begin(),
+            _pendingSubscriptions.end(),
+            PendingSubscriptionRecord{}
+        );
         _initialized = false;
     }
 
@@ -538,26 +533,19 @@ public:
     bool PeerAvailable(const MacAddress& address) {
         if (!_initialized || address.IsZero() || !RememberPeer(address)) return false;
         const auto device = DeviceFromMac(address);
-        (void)_remote.SetAvailability(
-            device, State::RemoteDeviceAvailability::Connected
-        );
-        _subscriptions.ForEach(
-            [&](const typename Subscriptions::Descriptor& subscription) {
-                if (
-                    subscription.Scope == State::StateSubscriptionScope::AnyDevice ||
-                    subscription.Device == device
-                ) {
-                    SendSubscriptionToPeer(device, subscription.TypeId, true);
-                }
+        (void)_remote.SetAvailability(device, State::RemoteDeviceAvailability::Connected);
+        _subscriptions.ForEach([&](const typename Subscriptions::Descriptor& subscription) {
+            if (subscription.Scope == State::StateSubscriptionScope::AnyDevice ||
+                subscription.Device == device) {
+                SendSubscriptionToPeer(device, subscription.TypeId, true);
             }
-        );
+        });
         return true;
     }
 
     bool PeerStale(const MacAddress& address) {
         return _remote.SetAvailability(
-            DeviceFromMac(address),
-            State::RemoteDeviceAvailability::Stale
+            DeviceFromMac(address), State::RemoteDeviceAvailability::Stale
         );
     }
 
@@ -565,29 +553,19 @@ public:
         const auto device = DeviceFromMac(address);
         ClearPeerPending(device);
         (void)_subscribers.Remove(device);
-        return _remote.SetAvailability(
-            device, State::RemoteDeviceAvailability::ConnectionLost
-        );
+        return _remote.SetAvailability(device, State::RemoteDeviceAvailability::ConnectionLost);
     }
 
     bool RequestResynchronization(const MacAddress& address) {
-        return SendControl(
-            DeviceFromMac(address),
-            State::StateProtocol::MessageType::Resynchronize,
-            0
-        );
+        return SendControl(DeviceFromMac(address), State::StateProtocol::MessageType::Resynchronize, 0);
     }
 
     bool DisconnectPeer(const MacAddress& address) {
         const auto device = DeviceFromMac(address);
-        const bool sent = SendControl(
-            device, State::StateProtocol::MessageType::Disconnect, 0
-        );
+        const bool sent = SendControl(device, State::StateProtocol::MessageType::Disconnect, 0);
         ClearPeerPending(device);
         (void)_subscribers.Remove(device);
-        (void)_remote.SetAvailability(
-            device, State::RemoteDeviceAvailability::Disconnected
-        );
+        (void)_remote.SetAvailability(device, State::RemoteDeviceAvailability::Disconnected);
         return sent;
     }
 
@@ -596,7 +574,6 @@ public:
         const State::StateUpdate<State::StateValueType<TDefinition>>& update
     ) {
         if (!_subscribers.template HasSubscribers<TDefinition>()) return;
-
         _subscribers.ForEachSubscriber(
             State::StateTypeIdOf<TDefinition>,
             [&](const State::DeviceIdentifier& subscriber) {
@@ -614,17 +591,8 @@ public:
             SendSubscriptionToPeer(device, typeId, true);
             return;
         }
-        std::array<State::DeviceIdentifier, TMaximumPeers> peers{};
-        std::size_t count = 0;
-        {
-            std::lock_guard<std::recursive_mutex> lock(_mutex);
-            for (const auto& peer : _peers) {
-                if (peer.Used) peers[count++] = peer.Device;
-            }
-        }
-        for (std::size_t index = 0; index < count; ++index) {
-            SendSubscriptionToPeer(peers[index], typeId, true);
-        }
+        auto peers = PeerDeviceSnapshot();
+        for (const auto& peer : peers) SendSubscriptionToPeer(peer, typeId, true);
     }
 
     void OnStateUnsubscribed(
@@ -636,17 +604,8 @@ public:
             SendSubscriptionToPeer(device, typeId, false);
             return;
         }
-        std::array<State::DeviceIdentifier, TMaximumPeers> peers{};
-        std::size_t count = 0;
-        {
-            std::lock_guard<std::recursive_mutex> lock(_mutex);
-            for (const auto& peer : _peers) {
-                if (peer.Used) peers[count++] = peer.Device;
-            }
-        }
-        for (std::size_t index = 0; index < count; ++index) {
-            SendSubscriptionToPeer(peers[index], typeId, false);
-        }
+        auto peers = PeerDeviceSnapshot();
+        for (const auto& peer : peers) SendSubscriptionToPeer(peer, typeId, false);
     }
 };
 
