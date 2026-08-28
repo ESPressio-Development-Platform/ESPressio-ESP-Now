@@ -44,6 +44,8 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Implements the ESPressio Event byte-transport contract over fragmented ESP-NOW protocol frames.</summary>
+/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before fragment reassembly and Event deserialization. Outbound Event packets are broadcast to the configured destination set.</remarks>
 class ESPNowEventTransport final :
     public Event::IEventTransport {
 
@@ -293,6 +295,7 @@ private:
 public:
     ESPNowEventTransport() = default;
 
+    /// <summary>Creates an Event transport pre-bound to a non-owning ESP-NOW transport reference.</summary>
     explicit ESPNowEventTransport(ESPNowTransport& transport)
         : _transport(&transport) {
     }
@@ -304,6 +307,8 @@ public:
         Shutdown();
     }
 
+    /// <summary>Starts the asynchronous Event protocol worker and registers the Event protocol handler with an initialized ESP-NOW transport.</summary>
+    /// <returns>True when both worker and protocol-handler registration succeed.</returns>
     bool Initialize(
         ESPNowTransport& transport = ESPNowTransport::GetInstance(),
         ESPNowAsyncProtocolHandler::Configuration asyncConfiguration = {}
@@ -343,6 +348,7 @@ public:
         return true;
     }
 
+    /// <summary>Unregisters the Event protocol handler, stops asynchronous processing, clears receiver/destinations/reassemblies, and detaches from ESP-NOW.</summary>
     void Shutdown() {
         if (!_initialized && _transport == nullptr) {
             _asyncHandler.Shutdown();
@@ -368,18 +374,23 @@ public:
         _initialized = false;
     }
 
+    /// <summary>Reports whether the Event transport protocol handler is currently initialized.</summary>
     bool GetIsInitialized() const {
         return _initialized;
     }
 
+    /// <summary>Returns task-executor statistics for inbound Event protocol processing.</summary>
     Task::TaskExecutionStatistics GetAsyncHandlerStatistics() const {
         return _asyncHandler.GetStatistics();
     }
 
+    /// <summary>Returns the number of inbound Event frames rejected during asynchronous handoff.</summary>
     uint64_t GetRejectedAsyncHandoffCount() const noexcept {
         return _asyncHandler.GetRejectedHandoffCount();
     }
 
+    /// <summary>Adds a destination peer for subsequent outbound Event packets.</summary>
+    /// <returns>True when the peer is already present or was added; false for zero addresses or exhausted capacity.</returns>
     bool AddDestination(const MacAddress& destination) {
         if (destination.IsZero()) {
             return false;
@@ -398,6 +409,7 @@ public:
         return true;
     }
 
+    /// <summary>Removes one destination peer from outbound Event delivery.</summary>
     bool RemoveDestination(const MacAddress& destination) {
         std::lock_guard<std::mutex> lock(_mutex);
         for (std::size_t index = 0; index < _destinationCount; ++index) {
@@ -414,6 +426,7 @@ public:
         return false;
     }
 
+    /// <summary>Removes all outbound Event destination peers.</summary>
     void ClearDestinations() {
         std::lock_guard<std::mutex> lock(_mutex);
         _destinationCount = 0;
@@ -422,11 +435,14 @@ public:
         }
     }
 
+    /// <summary>Returns the number of configured outbound Event destination peers.</summary>
     std::size_t GetDestinationCount() const {
         std::lock_guard<std::mutex> lock(_mutex);
         return _destinationCount;
     }
 
+    /// <summary>Fragments and sends an Event transport packet to every configured destination peer.</summary>
+    /// <returns>True only when at least one destination exists and every destination accepts every fragment.</returns>
     bool Send(const Event::EventTransportPacket& packet) override {
         if (
             !_initialized ||
@@ -460,6 +476,7 @@ public:
         return allAccepted;
     }
 
+    /// <summary>Sets the non-owning Event transport receiver that consumes fully reassembled inbound packets.</summary>
     void SetReceiver(Event::IEventTransportReceiver* receiver) override {
         std::lock_guard<std::mutex> lock(_mutex);
         _receiver = receiver;
