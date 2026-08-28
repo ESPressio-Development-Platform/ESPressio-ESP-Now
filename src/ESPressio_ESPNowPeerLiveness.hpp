@@ -13,6 +13,7 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Represents the age-derived liveness classification of a known ESP-NOW peer.</summary>
 enum class ESPNowPeerLivenessState : uint8_t {
     Unknown = 0,
     Alive = 1,
@@ -20,17 +21,26 @@ enum class ESPNowPeerLivenessState : uint8_t {
     Expired = 3
 };
 
+/// <summary>Configures the age thresholds used when classifying peer liveness.</summary>
 struct ESPNowPeerLivenessConfig {
+    /// <summary>Age after which a previously observed peer is considered suspect.</summary>
     uint64_t SuspectAfterNanoseconds = 5ULL * 1000ULL * 1000ULL * 1000ULL;
+    /// <summary>Age after which a previously observed peer is considered expired.</summary>
     uint64_t ExpireAfterNanoseconds = 20ULL * 1000ULL * 1000ULL * 1000ULL;
 };
 
+/// <summary>Point-in-time liveness information for one tracked peer.</summary>
 struct ESPNowPeerLivenessSnapshot {
+    /// <summary>Peer MAC address.</summary>
     MacAddress Address;
+    /// <summary>Peer state evaluated at the snapshot time.</summary>
     ESPNowPeerLivenessState State = ESPNowPeerLivenessState::Unknown;
+    /// <summary>Monotonic nanosecond timestamp of the most recent observation.</summary>
     uint64_t LastSeenNanoseconds = 0;
 };
 
+/// <summary>Tracks last-seen timestamps for a fixed-capacity collection of ESP-NOW peers.</summary>
+/// <remarks>Liveness is derived lazily from the caller-supplied current monotonic time; the tracker does not create a background task.</remarks>
 class ESPNowPeerLivenessTracker {
 private:
     struct PeerRecord {
@@ -56,6 +66,8 @@ private:
     }
 
 public:
+    /// <summary>Creates a tracker with the supplied liveness thresholds.</summary>
+    /// <param name="config">Thresholds used to classify observed peers.</param>
     explicit ESPNowPeerLivenessTracker(
         const ESPNowPeerLivenessConfig& config = ESPNowPeerLivenessConfig()
     ) : _config(config) {
@@ -64,6 +76,10 @@ public:
         }
     }
 
+    /// <summary>Records a peer as observed at the supplied monotonic timestamp.</summary>
+    /// <param name="address">Peer MAC address.</param>
+    /// <param name="nowNanoseconds">Current monotonic time in nanoseconds.</param>
+    /// <returns>True when an existing record was updated or a free record was available.</returns>
     bool Observe(const MacAddress& address, uint64_t nowNanoseconds) {
         if (address.IsZero()) return false;
         std::lock_guard<std::mutex> lock(_mutex);
@@ -82,6 +98,8 @@ public:
         return true;
     }
 
+    /// <summary>Removes a peer from liveness tracking.</summary>
+    /// <returns>True when a matching tracked peer was removed.</returns>
     bool Forget(const MacAddress& address) {
         std::lock_guard<std::mutex> lock(_mutex);
         for (auto& peer : _peers) {
@@ -93,6 +111,10 @@ public:
         return false;
     }
 
+    /// <summary>Evaluates the current liveness state for a peer.</summary>
+    /// <param name="address">Peer to inspect.</param>
+    /// <param name="nowNanoseconds">Current monotonic time in nanoseconds.</param>
+    /// <returns>The derived liveness state, or Unknown when the peer has not been tracked.</returns>
     ESPNowPeerLivenessState GetState(const MacAddress& address, uint64_t nowNanoseconds) const {
         std::lock_guard<std::mutex> lock(_mutex);
         for (const auto& peer : _peers) {
@@ -101,6 +123,11 @@ public:
         return ESPNowPeerLivenessState::Unknown;
     }
 
+    /// <summary>Copies current liveness information for tracked peers into caller-owned storage.</summary>
+    /// <param name="output">Destination array.</param>
+    /// <param name="capacity">Number of snapshot elements available in the destination.</param>
+    /// <param name="nowNanoseconds">Current monotonic time used to classify each peer.</param>
+    /// <returns>The number of snapshot elements written.</returns>
     std::size_t Snapshot(
         ESPNowPeerLivenessSnapshot* output,
         std::size_t capacity,
