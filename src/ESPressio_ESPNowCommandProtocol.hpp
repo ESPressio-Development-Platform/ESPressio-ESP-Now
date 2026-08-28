@@ -16,17 +16,22 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Identifies request and response payloads carried by the ESP-NOW Command protocol.</summary>
 enum class ESPNowCommandMessageType : uint8_t {
     Request = 1,
     Response = 2
 };
 
+/// <summary>Encodes, decodes, fragments, and validates transport-neutral Command request/response payloads for ESP-NOW.</summary>
 class ESPNowCommandProtocol final {
 public:
+    /// <summary>Wire magic identifying ESP-NOW Command fragments.</summary>
     static constexpr uint32_t Magic = 0x45434D44u; // ECMD
+    /// <summary>Current ESP-NOW Command fragment protocol version.</summary>
     static constexpr uint8_t Version = 1;
 
 #pragma pack(push, 1)
+    /// <summary>Fixed wire header prepended to each fragmented Command request or response payload.</summary>
     struct FragmentHeader {
         uint32_t MagicValue = Magic;
         uint8_t VersionValue = Version;
@@ -40,18 +45,23 @@ public:
     };
 #pragma pack(pop)
 
+    /// <summary>Size in bytes of the fixed Command fragment header.</summary>
     static constexpr std::size_t FragmentHeaderSize = sizeof(FragmentHeader);
 
+    /// <summary>Decoded Command request paired with its transport request identifier.</summary>
     struct Request {
         uint64_t RequestID = 0;
         Command::CommandInvocation Invocation;
     };
 
+    /// <summary>Decoded Command response paired with its originating request identifier.</summary>
     struct Response {
         uint64_t RequestID = 0;
         Command::CommandResult Result;
     };
 
+    /// <summary>Encodes a Command invocation into the protocol request payload representation.</summary>
+    /// <returns>True when every path/argument/raw string can be represented by the wire format.</returns>
     static bool EncodeRequest(const Command::CommandInvocation& invocation, std::vector<uint8_t>& output) {
         output.clear();
         if (invocation.path.empty()) return false;
@@ -67,10 +77,13 @@ public:
         return AppendString(output, invocation.raw);
     }
 
+    /// <summary>Encodes the invocation contained by a decoded/request wrapper.</summary>
     static bool EncodeRequest(const Request& request, std::vector<uint8_t>& output) {
         return EncodeRequest(request.Invocation, output);
     }
 
+    /// <summary>Decodes a request payload and associates it with the supplied transport request identifier.</summary>
+    /// <returns>True only when the complete payload is structurally valid and consumed exactly.</returns>
     static bool DecodeRequest(uint64_t requestID, const uint8_t* data, std::size_t size, Request& output) {
         if (data == nullptr && size != 0) return false;
         Reader reader(data, size);
@@ -100,6 +113,7 @@ public:
         return true;
     }
 
+    /// <summary>Encodes a Command result into the protocol response payload representation.</summary>
     static bool EncodeResponse(const Command::CommandResult& result, std::vector<uint8_t>& output) {
         output.clear();
         output.push_back(result.success ? 1u : 0u);
@@ -107,10 +121,13 @@ public:
         return AppendString(output, result.message);
     }
 
+    /// <summary>Encodes the Command result contained by a response wrapper.</summary>
     static bool EncodeResponse(const Response& response, std::vector<uint8_t>& output) {
         return EncodeResponse(response.Result, output);
     }
 
+    /// <summary>Decodes a response payload and associates it with the supplied request identifier.</summary>
+    /// <returns>True only when the complete response payload is valid and consumed exactly.</returns>
     static bool DecodeResponse(uint64_t requestID, const uint8_t* data, std::size_t size, Response& output) {
         if (data == nullptr || size < 5) return false;
         Reader reader(data, size);
@@ -123,6 +140,7 @@ public:
         return true;
     }
 
+    /// <summary>Validates and parses a Command fragment header, returning a borrowed view of the fragment payload.</summary>
     static bool ParseFragmentHeader(const uint8_t* data, std::size_t size, FragmentHeader& header, const uint8_t*& fragmentData) {
         fragmentData = nullptr;
         if (data == nullptr || size < sizeof(FragmentHeader)) return false;
@@ -135,6 +153,8 @@ public:
         return true;
     }
 
+    /// <summary>Calculates the number of wire fragments required for a payload and transport payload limit.</summary>
+    /// <returns>Zero when the payload cannot be represented by the fragment format or the transport payload is too small.</returns>
     static std::size_t GetFragmentCount(std::size_t payloadSize, std::size_t maximumProtocolPayload) {
         if (payloadSize == 0 || maximumProtocolPayload <= sizeof(FragmentHeader) || payloadSize > 0xFFFFFFFFu) return 0;
         const std::size_t fragmentCapacity = maximumProtocolPayload - sizeof(FragmentHeader);
@@ -142,6 +162,8 @@ public:
         return count == 0 || count > 0xFFFFu ? 0 : count;
     }
 
+    /// <summary>Builds one indexed fragment for a Command request or response payload.</summary>
+    /// <returns>True when the requested fragment index and payload can be represented.</returns>
     static bool BuildFragment(
         ESPNowCommandMessageType type,
         uint64_t requestID,
@@ -169,6 +191,8 @@ public:
         return true;
     }
 
+    /// <summary>Builds every wire fragment required for a Command request or response payload.</summary>
+    /// <returns>Fragments in ascending fragment-index order, or an empty collection when fragmentation is not possible.</returns>
     static std::vector<std::vector<uint8_t>> BuildFragments(
         ESPNowCommandMessageType type,
         uint64_t requestID,
