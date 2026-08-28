@@ -9,28 +9,32 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Observes lifecycle, peer, receive, and send activity from the ESP-NOW transport.</summary>
+/// <remarks>All callbacks have default no-op implementations so consumers may override only the activity they need.</remarks>
 class IESPNowTransportObserver :
     public virtual Observable::IObserver {
 public:
     virtual ~IESPNowTransportObserver() = default;
 
+    /// <summary>Called after the native ESP-NOW transport initializes successfully.</summary>
     virtual void OnESPNowTransportInitialized() {}
+    /// <summary>Called when native ESP-NOW transport initialization fails.</summary>
     virtual void OnESPNowTransportInitializationFailed() {}
+    /// <summary>Called after the ESP-NOW transport has shut down.</summary>
     virtual void OnESPNowTransportShutdown() {}
 
+    /// <summary>Called when a managed ESP-NOW peer is added or updated successfully.</summary>
     virtual void OnESPNowPeerAdded(
         const MacAddress&
     ) {}
 
+    /// <summary>Called when a managed ESP-NOW peer is removed.</summary>
     virtual void OnESPNowPeerRemoved(
         const MacAddress&
     ) {}
 
-    /*
-     * Called only after the ESPressio wire header has been validated. This is
-     * intentionally protocol-agnostic: discovery, clock, Event, Command,
-     * Security and user traffic are all valid evidence that a peer is alive.
-     */
+    /// <summary>Called after an inbound frame has passed ESPressio wire-header validation.</summary>
+    /// <remarks>This callback is protocol-agnostic: discovery, clock, Event, Command, Security, State, and user traffic are all valid peer-liveness evidence.</remarks>
     virtual void OnESPNowFrameReceived(
         const MacAddress&,
         uint8_t,
@@ -38,24 +42,22 @@ public:
         uint64_t
     ) {}
 
+    /// <summary>Called when an outbound frame is accepted by the native ESP-NOW send API.</summary>
     virtual void OnESPNowSendAccepted(
         const MacAddress&,
         uint8_t,
         std::size_t
     ) {}
 
+    /// <summary>Compatibility callback for an outbound send failure without detailed error classification.</summary>
     virtual void OnESPNowSendFailed(
         const MacAddress&,
         uint8_t,
         std::size_t
     ) {}
 
-    /*
-     * Detailed failure callback added by #40. The default implementation
-     * delegates to the original callback, so existing observers remain source
-     * compatible while newer observers can inspect the stable failure class
-     * and native ESP-IDF esp_err_t value.
-     */
+    /// <summary>Called when an outbound send fails, including stable failure classification and the native ESP-IDF error value.</summary>
+    /// <remarks>The default implementation delegates to OnESPNowSendFailed so existing observers remain compatible.</remarks>
     virtual void OnESPNowSendFailedDetailed(
         const MacAddress& destination,
         uint8_t protocol,
