@@ -19,21 +19,26 @@
 namespace ESPressio {
 namespace ESPNow {
 
-// Optional Command integration for runtime diagnostics and controlled
-// experiments. The handler deliberately distinguishes live-safe radio-binding
-// changes from initialization-only worker/queue settings.
+/// <summary>Registers runtime ESP-NOW diagnostics and controlled shared-radio binding commands with ESPressio Command.</summary>
+/// <remarks>Live-safe radio-binding changes are kept distinct from initialization-only task/queue configuration.</remarks>
 class ESPNowCommandHandler {
 public:
+    /// <summary>Application-provided authority used to change the physical shared-radio channel.</summary>
     using RadioChannelSetter = std::function<bool(uint8_t)>;
 
+    /// <summary>Optional integrations used by commands that require ownership outside ESPNowTransport.</summary>
     struct Options {
-        // Invoked by `espnow channel N` before the ESP-NOW binding is updated.
-        // When ESPressio WiFi owns the radio, applications should route this to
-        // WiFiManager::Configure(); standalone ESP-NOW applications may route it
-        // directly to esp_wifi_set_channel().
+        /// <summary>Invoked by `espnow channel N` before the ESP-NOW logical binding is reconciled.</summary>
+        /// <remarks>When ESPressio WiFi owns the radio, route this to WiFiManager configuration; standalone ESP-NOW applications may route directly to the native WiFi channel API.</remarks>
         RadioChannelSetter SetRadioChannel;
     };
 
+    /// <summary>Registers the `espnow` command tree against an initialized transport.</summary>
+    /// <param name="registry">Command registry receiving the ESP-NOW command hierarchy.</param>
+    /// <param name="transport">Transport whose status and binding are controlled.</param>
+    /// <param name="initializationConfig">Original initialization-only configuration displayed by diagnostics.</param>
+    /// <param name="options">Optional external radio-control authority.</param>
+    /// <returns>True when the command registration is active.</returns>
     bool Initialize(
         Command::CommandRegistry& registry,
         ESPNowTransport& transport,
@@ -114,6 +119,7 @@ public:
         return true;
     }
 
+    /// <summary>Removes the command registration and clears all transport/radio-control references.</summary>
     void Shutdown() {
         _registration.Reset();
         _transport = nullptr;
