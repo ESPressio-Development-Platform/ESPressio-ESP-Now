@@ -17,6 +17,8 @@ namespace ESPressio {
 
     namespace ESPNow {
 
+        /// <summary>Implements four-timestamp clock synchronization exchanges over ESP-NOW and submits completed samples to an ESPressio Timing synchronization target.</summary>
+        /// <remarks>The synchronizer may operate as a client, reference, or both. It uses transport-captured monotonic receive timestamps to recover receive-time System Clock timestamps without moving heavy Timing work onto the ESP-NOW callback path.</remarks>
         class ESPNowClockSynchronizer {
             private:
                 enum class MessageType : uint8_t {
@@ -373,6 +375,9 @@ namespace ESPressio {
 
 
             public:
+                /// <summary>Creates a synchronizer bound to an ESP-NOW transport and Timing synchronization target.</summary>
+                /// <param name="transport">Transport used for synchronization frames, or null for the ESP-NOW singleton.</param>
+                /// <param name="target">Timing target receiving synchronization samples, or null for the default System Clock.</param>
                 explicit
                 ESPNowClockSynchronizer(
                     ESPNowTransport* transport =
@@ -411,6 +416,8 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Applies synchronization mode/configuration and registers the clock synchronization protocol handler.</summary>
+                /// <returns>True when the transport/target are usable, any configured reference peer exists, and protocol registration succeeds.</returns>
                 bool Initialize(
                     const ESPNowClockSynchronizationConfig&
                         config
@@ -481,6 +488,7 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Unregisters the synchronization protocol handler and clears any outstanding request sequence.</summary>
                 void Shutdown() {
                     if (!_initialized) {
                         return;
@@ -506,6 +514,9 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Sends one four-timestamp synchronization request to the configured reference peer.</summary>
+                /// <remarks>T1 is captured immediately before the transport send; failed sends consume the attempt interval to avoid a tight retry storm under transient ESP-NOW resource pressure.</remarks>
+                /// <returns>True when the request is accepted by ESPNowTransport.</returns>
                 bool RequestSynchronization() {
                     if (
                         !_initialized ||
@@ -578,6 +589,7 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Starts a synchronization request when the configured interval has elapsed.</summary>
                 void Update() {
                     if (
                         !_initialized ||
@@ -612,12 +624,14 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Reports whether the synchronization protocol handler is currently registered.</summary>
                 bool GetIsInitialized()
                     const {
                     return _initialized;
                 }
 
 
+                /// <summary>Returns a thread-safe copy of the active ESP-NOW clock synchronization configuration.</summary>
                 ESPNowClockSynchronizationConfig
                 GetConfig() const {
                     std::lock_guard<
@@ -630,6 +644,7 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Returns the current synchronization status directly from the configured Timing target.</summary>
                 Timing::
                     ClockSynchronizationStatus<
                         Timing::ClockTick
