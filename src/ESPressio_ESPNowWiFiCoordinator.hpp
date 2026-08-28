@@ -15,14 +15,11 @@
 namespace ESPressio {
 namespace ESPNow {
 
-// Optional integration layer between ESPressio WiFi and ESP-NOW. WiFi owns
-// the shared radio. The coordinator follows WiFi's authoritative low-level
-// radio lifecycle while keeping ordinary SoftAP client topology independent
-// from ESP-NOW whenever a station interface is available. Standalone ESP-NOW
-// users simply do not include this header and retain native/Arduino-WiFi
-// behavior.
+/// <summary>Coordinates ESP-NOW with ESPressio WiFi's authoritative ownership of the shared ESP32 radio.</summary>
+/// <remarks>WiFi controls native interface/mode/channel lifecycle. The coordinator mirrors that physical state into ESP-NOW binding, suspends ESP-NOW during destructive radio transitions/scans, and prefers the station interface in AP+STA mode when available so SoftAP client topology does not disturb ESP-NOW peers.</remarks>
 class ESPNowWiFiCoordinator final : public WiFi::IWiFiRadioObserver {
 public:
+    /// <summary>Creates a coordinator over non-owning ESP-NOW transport and WiFi manager references.</summary>
     ESPNowWiFiCoordinator(
         ESPNowTransport& transport,
         WiFi::WiFiManager& wifiManager
@@ -33,6 +30,8 @@ public:
 
     ~ESPNowWiFiCoordinator() override { Shutdown(); }
 
+    /// <summary>Registers for low-level WiFi radio lifecycle notifications and reconciles the current radio state into ESP-NOW.</summary>
+    /// <returns>True when observation is active and the current binding can be applied.</returns>
     bool Initialize() {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         if (_observerHandle) return ApplyState(_wifiManager.RadioState(), false);
@@ -43,6 +42,7 @@ public:
         return ApplyState(_wifiManager.RadioState(), false);
     }
 
+    /// <summary>Unregisters from WiFi radio observation and clears coordinator transition bookkeeping.</summary>
     void Shutdown() {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _observerHandle.reset();
@@ -52,15 +52,18 @@ public:
         _transitionSuspendedNativeState = false;
     }
 
+    /// <summary>Reports whether the WiFi radio observer registration is active.</summary>
     bool IsInitialized() const noexcept {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         return static_cast<bool>(_observerHandle);
     }
 
+    /// <summary>Returns the current logical ESP-NOW shared-radio binding.</summary>
     ESPNowRadioBinding CurrentBinding() const {
         return _transport.GetRadioBinding();
     }
 
+    /// <summary>Chooses the ESP-NOW interface best aligned with an authoritative WiFi radio state.</summary>
     static ESPNowWiFiInterface ResolvePreferredInterface(const WiFi::WiFiRadioState& state) {
         switch (state.Mode) {
             case WiFi::WiFiRadioMode::AccessPoint:
@@ -82,11 +85,15 @@ public:
         }
     }
 
+    /// <summary>Reconciles ESP-NOW against the WiFi manager's current physical radio state.</summary>
+    /// <param name="forceNativeReinitialization">Force native ESP-NOW rebuild before managed-peer reconciliation.</param>
+    /// <returns>True when the resulting binding is applied successfully.</returns>
     bool RefreshBinding(bool forceNativeReinitialization = false) {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         return ApplyState(_wifiManager.RadioState(), forceNativeReinitialization);
     }
 
+    /// <inheritdoc/>
     void OnWiFiRadioTransitionBeginning(
         const WiFi::WiFiRadioState&,
         WiFi::WiFiRadioTransitionReason
@@ -103,6 +110,7 @@ public:
         }
     }
 
+    /// <inheritdoc/>
     void OnWiFiRadioTransitionCompleted(
         const WiFi::WiFiRadioState&,
         const WiFi::WiFiRadioState& after,
@@ -116,6 +124,7 @@ public:
         (void)ApplyState(after, rebuild);
     }
 
+    /// <inheritdoc/>
     void OnWiFiRadioStateChanged(
         const WiFi::WiFiRadioState&,
         const WiFi::WiFiRadioState& after
@@ -130,12 +139,14 @@ public:
         (void)ApplyState(after, false);
     }
 
+    /// <inheritdoc/>
     void OnWiFiRadioScanBeginning(const WiFi::WiFiRadioState&) override {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _scanSuspended = true;
         _transport.SetRadioAvailable(false);
     }
 
+    /// <inheritdoc/>
     void OnWiFiRadioScanCompleted(const WiFi::WiFiRadioState& after) override {
         std::lock_guard<std::recursive_mutex> lock(_stateMutex);
         _scanSuspended = false;
