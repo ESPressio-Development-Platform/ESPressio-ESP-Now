@@ -5,6 +5,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -93,18 +94,21 @@ public:
         result.RequestID = requestID;
         result.Invocation.path.reserve(count);
         for (uint16_t i = 0; i < count; ++i) {
-            std::string value; if (!reader.ReadString(value)) return false;
+            Command::CommandString value;
+            if (!reader.ReadString(value)) return false;
             result.Invocation.path.push_back(std::move(value));
         }
         if (!reader.ReadU16(count)) return false;
         result.Invocation.positional.reserve(count);
         for (uint16_t i = 0; i < count; ++i) {
-            std::string value; if (!reader.ReadString(value)) return false;
+            Command::CommandString value;
+            if (!reader.ReadString(value)) return false;
             result.Invocation.positional.emplace_back(std::move(value));
         }
         if (!reader.ReadU16(count)) return false;
         for (uint16_t i = 0; i < count; ++i) {
-            std::string key, value;
+            Command::CommandString key;
+            Command::CommandString value;
             if (!reader.ReadString(key) || !reader.ReadString(value)) return false;
             result.Invocation.named.emplace(std::move(key), Command::CommandValue(std::move(value)));
         }
@@ -131,7 +135,9 @@ public:
     static bool DecodeResponse(uint64_t requestID, const uint8_t* data, std::size_t size, Response& output) {
         if (data == nullptr || size < 5) return false;
         Reader reader(data, size);
-        uint8_t success = 0; int32_t code = 0; std::string message;
+        uint8_t success = 0;
+        int32_t code = 0;
+        std::string message;
         if (!reader.ReadU8(success) || success > 1 || !reader.ReadI32(code) || !reader.ReadString(message) || !reader.AtEnd()) return false;
         output.RequestID = requestID;
         output.Result.success = success != 0;
@@ -212,40 +218,77 @@ public:
     }
 
 private:
-    static bool AppendString(std::vector<uint8_t>& out, const std::string& value) {
+    template<typename TString>
+    static bool AppendString(std::vector<uint8_t>& out, const TString& value) {
         if (value.size() > 0xFFFFu) return false;
         AppendU16(out, value.size());
         out.insert(out.end(), value.begin(), value.end());
         return true;
     }
+
     static bool AppendCommandValue(std::vector<uint8_t>& out, const Command::CommandValue& value) {
         if (value.IsNull()) return false;
         return AppendString(out, value.ToString());
     }
+
     static void AppendU16(std::vector<uint8_t>& out, std::size_t value) {
         const uint16_t v = static_cast<uint16_t>(value);
-        out.push_back(static_cast<uint8_t>(v & 0xFFu)); out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
+        out.push_back(static_cast<uint8_t>(v & 0xFFu));
+        out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
     }
+
     static void AppendI32(std::vector<uint8_t>& out, int value) {
         const uint32_t v = static_cast<uint32_t>(static_cast<int32_t>(value));
-        out.push_back(static_cast<uint8_t>(v & 0xFFu)); out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
-        out.push_back(static_cast<uint8_t>((v >> 16) & 0xFFu)); out.push_back(static_cast<uint8_t>((v >> 24) & 0xFFu));
+        out.push_back(static_cast<uint8_t>(v & 0xFFu));
+        out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
+        out.push_back(static_cast<uint8_t>((v >> 16) & 0xFFu));
+        out.push_back(static_cast<uint8_t>((v >> 24) & 0xFFu));
     }
 
     class Reader {
     public:
         Reader(const uint8_t* data, std::size_t size) : data_(data), size_(size) {}
-        bool ReadU8(uint8_t& value) { if (offset_ + 1 > size_) return false; value = data_[offset_++]; return true; }
-        bool ReadU16(uint16_t& value) { if (offset_ + 2 > size_) return false; value = static_cast<uint16_t>(data_[offset_]) | static_cast<uint16_t>(data_[offset_ + 1] << 8); offset_ += 2; return true; }
+
+        bool ReadU8(uint8_t& value) {
+            if (offset_ + 1 > size_) return false;
+            value = data_[offset_++];
+            return true;
+        }
+
+        bool ReadU16(uint16_t& value) {
+            if (offset_ + 2 > size_) return false;
+            value = static_cast<uint16_t>(data_[offset_]) |
+                static_cast<uint16_t>(data_[offset_ + 1] << 8);
+            offset_ += 2;
+            return true;
+        }
+
         bool ReadI32(int32_t& value) {
             if (offset_ + 4 > size_) return false;
-            const uint32_t v = static_cast<uint32_t>(data_[offset_]) | (static_cast<uint32_t>(data_[offset_ + 1]) << 8) | (static_cast<uint32_t>(data_[offset_ + 2]) << 16) | (static_cast<uint32_t>(data_[offset_ + 3]) << 24);
-            value = static_cast<int32_t>(v); offset_ += 4; return true;
+            const uint32_t v = static_cast<uint32_t>(data_[offset_]) |
+                (static_cast<uint32_t>(data_[offset_ + 1]) << 8) |
+                (static_cast<uint32_t>(data_[offset_ + 2]) << 16) |
+                (static_cast<uint32_t>(data_[offset_ + 3]) << 24);
+            value = static_cast<int32_t>(v);
+            offset_ += 4;
+            return true;
         }
-        bool ReadString(std::string& value) { uint16_t length = 0; if (!ReadU16(length) || offset_ + length > size_) return false; value.assign(reinterpret_cast<const char*>(data_ + offset_), length); offset_ += length; return true; }
+
+        template<typename TString>
+        bool ReadString(TString& value) {
+            uint16_t length = 0;
+            if (!ReadU16(length) || offset_ + length > size_) return false;
+            value.assign(reinterpret_cast<const char*>(data_ + offset_), length);
+            offset_ += length;
+            return true;
+        }
+
         bool AtEnd() const { return offset_ == size_; }
+
     private:
-        const uint8_t* data_ = nullptr; std::size_t size_ = 0; std::size_t offset_ = 0;
+        const uint8_t* data_ = nullptr;
+        std::size_t size_ = 0;
+        std::size_t offset_ = 0;
     };
 };
 
