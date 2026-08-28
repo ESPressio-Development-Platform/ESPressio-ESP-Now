@@ -16,6 +16,7 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Configures the Command endpoint, asynchronous receive worker, and ESP-NOW protocol number used by ESPNowCommandTransport.</summary>
 struct ESPNowCommandTransportConfig {
     ESPNowCommandEndpointConfig Endpoint;
     ESPNowAsyncProtocolHandler::Configuration AsyncHandler;
@@ -26,6 +27,8 @@ struct ESPNowCommandTransportConfig {
     }
 };
 
+/// <summary>Bridges ESPressio Command request/response routing onto an ESPNowTransport.</summary>
+/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Command parsing/execution, while response routing is registered with the Command response-route registry.</remarks>
 class ESPNowCommandTransport final {
 public:
     using CompletionHandler = ESPNowCommandEndpoint::CompletionHandler;
@@ -65,6 +68,11 @@ private:
 public:
     ~ESPNowCommandTransport() { Shutdown(); }
 
+    /// <summary>Initializes the endpoint, Command response route, asynchronous receive handler, protocol handler, and maintenance callback.</summary>
+    /// <param name="transport">Initialized ESP-NOW transport used for Command frames.</param>
+    /// <param name="registry">Command registry used to resolve inbound invocations.</param>
+    /// <param name="config">Command transport configuration.</param>
+    /// <returns>True when every required integration point is registered successfully.</returns>
     bool Initialize(
         ESPNowTransport& transport = ESPNowTransport::GetInstance(),
         Command::CommandRegistry& registry = Command::CommandRegistry::GetInstance(),
@@ -191,6 +199,7 @@ public:
         return true;
     }
 
+    /// <summary>Unregisters protocol/maintenance hooks, stops the async worker, removes the Command response route, and shuts down the endpoint.</summary>
     void Shutdown() {
         if (_transport != nullptr && _initialized) {
             _transport->UnregisterMaintenanceHandler(this);
@@ -218,8 +227,15 @@ public:
         _initialized = false;
     }
 
+    /// <summary>Reports whether all Command transport integrations are currently initialized.</summary>
     bool GetIsInitialized() const noexcept { return _initialized; }
 
+    /// <summary>Sends a Command invocation to a remote ESP-NOW peer.</summary>
+    /// <param name="peer">Destination peer MAC address.</param>
+    /// <param name="invocation">Command invocation to encode and transmit.</param>
+    /// <param name="completion">Optional completion callback for the response.</param>
+    /// <param name="requestID">Optional destination for the allocated request identifier.</param>
+    /// <returns>True when the endpoint accepts the outbound request.</returns>
     bool Invoke(
         const MacAddress& peer,
         const Command::CommandInvocation& invocation,
@@ -239,6 +255,7 @@ public:
         );
     }
 
+    /// <summary>Runs endpoint timeout/reassembly maintenance using the transport monotonic clock.</summary>
     void Update() {
         if (!_initialized || _transport == nullptr) return;
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
@@ -247,34 +264,41 @@ public:
         );
     }
 
+    /// <summary>Sets the policy callback applied to inbound Command invocations.</summary>
     void SetPolicy(PolicyHandler policy) {
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
         _endpoint.SetPolicy(std::move(policy));
     }
 
+    /// <summary>Sets an observer for Command results produced or received by the endpoint.</summary>
     void SetResultObserver(ResultObserver observer) {
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
         _endpoint.SetResultObserver(std::move(observer));
     }
 
+    /// <summary>Returns the number of outbound requests awaiting completion.</summary>
     std::size_t GetOutstandingRequestCount() const noexcept {
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
         return _endpoint.GetOutstandingRequestCount();
     }
 
+    /// <summary>Returns the number of inbound requests currently awaiting completion/response.</summary>
     std::size_t GetInboundRequestCount() const noexcept {
         std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
         return _endpoint.GetInboundRequestCount();
     }
 
+    /// <summary>Returns the effective endpoint configuration.</summary>
     const ESPNowCommandEndpointConfig& GetEndpointConfig() const noexcept {
         return _endpoint.GetConfig();
     }
 
+    /// <summary>Returns queue/execution statistics for the asynchronous receive handler.</summary>
     Task::TaskExecutionStatistics GetAsyncHandlerStatistics() const {
         return _asyncHandler.GetStatistics();
     }
 
+    /// <summary>Returns the number of inbound frames rejected while handing them to the asynchronous receive worker.</summary>
     uint64_t GetRejectedAsyncHandoffCount() const noexcept {
         return _asyncHandler.GetRejectedHandoffCount();
     }
