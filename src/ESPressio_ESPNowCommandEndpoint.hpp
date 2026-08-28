@@ -16,12 +16,14 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Value-semantic six-byte address used to identify peers within the ESP-NOW Command endpoint.</summary>
 struct ESPNowCommandPeerAddress {
     std::array<uint8_t, 6> Bytes{};
     bool operator==(const ESPNowCommandPeerAddress& other) const noexcept { return Bytes == other.Bytes; }
     bool operator<(const ESPNowCommandPeerAddress& other) const noexcept { return Bytes < other.Bytes; }
 };
 
+/// <summary>Transport metadata associated with one decoded inbound Command invocation.</summary>
 struct ESPNowCommandMetadata {
     const char* Transport = "esp-now";
     ESPNowCommandPeerAddress RemotePeer;
@@ -29,11 +31,13 @@ struct ESPNowCommandMetadata {
     bool Duplicate = false;
 };
 
+/// <summary>Inbound Command invocation paired with its ESP-NOW transport metadata.</summary>
 struct ESPNowCommandInvocationContext {
     ESPNowCommandMetadata Metadata;
     Command::CommandInvocation Invocation;
 };
 
+/// <summary>Bounds message size, outstanding work, reassembly state, duplicate caching, and timeouts for ESPNowCommandEndpoint.</summary>
 struct ESPNowCommandEndpointConfig {
     std::size_t MaximumProtocolPayloadBytes = 242;
     std::size_t MaximumMessageBytes = 4096;
@@ -46,14 +50,22 @@ struct ESPNowCommandEndpointConfig {
     uint64_t DuplicateResultLifetimeMilliseconds = 1000;
 };
 
+/// <summary>Transport-independent ESP-NOW Command endpoint implementing request correlation, fragmentation/reassembly, duplicate suppression, policy, and timeout handling.</summary>
 class ESPNowCommandEndpoint final {
 public:
+    /// <summary>Callback that sends one fully built protocol fragment to a peer.</summary>
     using SendHandler = std::function<bool(const ESPNowCommandPeerAddress&, const uint8_t*, std::size_t)>;
+    /// <summary>Callback invoked when an outbound request completes or times out.</summary>
     using CompletionHandler = std::function<void(const Command::CommandResult&)>;
+    /// <summary>Optional policy callback evaluated before an inbound Command is handed to execution.</summary>
     using PolicyHandler = std::function<Command::CommandResult(const ESPNowCommandInvocationContext&)>;
+    /// <summary>Observer callback for results produced for inbound Command invocations.</summary>
     using ResultObserver = std::function<void(const ESPNowCommandInvocationContext&, const Command::CommandResult&)>;
+    /// <summary>Optional asynchronous handoff callback for accepted inbound Command requests.</summary>
     using InboundRequestHandler = std::function<bool(const ESPNowCommandInvocationContext&)>;
 
+    /// <summary>Initializes the endpoint with bounded resource policy and a fragment-send callback.</summary>
+    /// <returns>False when required capacities are zero, protocol payload capacity is too small, or the sender is empty.</returns>
     bool Initialize(Command::CommandRegistry& registry, ESPNowCommandEndpointConfig config, SendHandler sender) {
         Shutdown();
         if (!sender || config.MaximumProtocolPayloadBytes <= ESPNowCommandProtocol::FragmentHeaderSize ||
@@ -67,6 +79,7 @@ public:
         return true;
     }
 
+    /// <summary>Fails pending outbound requests, clears reassembly/duplicate/inbound state, and releases callbacks/registry references.</summary>
     void Shutdown() {
         if (_initialized) {
             for (auto& item : _pending) {
@@ -87,15 +100,25 @@ public:
         _initialized = false;
     }
 
+    /// <summary>Reports whether the endpoint is initialized.</summary>
     bool GetIsInitialized() const noexcept { return _initialized; }
+    /// <summary>Returns the effective endpoint resource/time-out configuration.</summary>
     const ESPNowCommandEndpointConfig& GetConfig() const noexcept { return _config; }
+    /// <summary>Returns the number of outbound requests awaiting responses.</summary>
     std::size_t GetOutstandingRequestCount() const noexcept { return _pending.size(); }
+    /// <summary>Returns the number of handed-off inbound requests awaiting completion.</summary>
     std::size_t GetInboundRequestCount() const noexcept { return _inbound.size(); }
+    /// <summary>Returns the number of incomplete fragmented messages currently being reassembled.</summary>
     std::size_t GetReassemblyCount() const noexcept { return _reassemblies.size(); }
+    /// <summary>Sets the inbound Command policy callback.</summary>
     void SetPolicy(PolicyHandler policy) { _policy = std::move(policy); }
+    /// <summary>Sets the observer called for completed inbound Command results.</summary>
     void SetResultObserver(ResultObserver observer) { _observer = std::move(observer); }
+    /// <summary>Sets an asynchronous inbound-request handoff callback; when unset, Commands execute synchronously through the registry.</summary>
     void SetInboundRequestHandler(InboundRequestHandler handler) { _inboundHandler = std::move(handler); }
 
+    /// <summary>Allocates a request identifier, encodes/fragments an invocation, sends it, and tracks its completion timeout.</summary>
+    /// <returns>True when the request is accepted and all initial fragments are sent.</returns>
     bool Invoke(const ESPNowCommandPeerAddress& peer, const Command::CommandInvocation& invocation, CompletionHandler completion,
                 uint64_t nowMilliseconds, uint64_t* requestID = nullptr) {
         if (!_initialized || _registry == nullptr || !_sender || invocation.path.empty() ||
@@ -121,6 +144,8 @@ public:
         return true;
     }
 
+    /// <summary>Accepts one Command protocol fragment, validates/reassembles it, and dispatches a completed request or response.</summary>
+    /// <returns>True for an accepted partial fragment or successfully handled complete message.</returns>
     bool Receive(const ESPNowCommandPeerAddress& peer, const uint8_t* data, std::size_t size, uint64_t nowMilliseconds) {
         if (!_initialized || data == nullptr) return false;
         ESPNowCommandProtocol::FragmentHeader header;
@@ -175,6 +200,8 @@ public:
         return false;
     }
 
+    /// <summary>Completes a previously handed-off inbound request and sends/caches its response.</summary>
+    /// <returns>False when no matching inbound request remains.</returns>
     bool CompleteInbound(
         const ESPNowCommandPeerAddress& peer,
         const Command::CommandResponseEnvelope& response,
@@ -195,6 +222,7 @@ public:
         return SendResponseAndCache(peer, response.RequestId, result, nowMilliseconds);
     }
 
+    /// <summary>Expires timed-out outbound requests, stale fragment reassemblies, and duplicate-response cache entries.</summary>
     void Update(uint64_t nowMilliseconds) {
         if (!_initialized) return;
         for (std::size_t i = 0; i < _pending.size();) {
