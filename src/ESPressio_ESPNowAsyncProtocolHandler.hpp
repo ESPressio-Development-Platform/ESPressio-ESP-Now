@@ -26,16 +26,30 @@
 namespace ESPressio {
 namespace ESPNow {
 
+/// <summary>
+/// Moves received ESP-NOW protocol frames from the transport callback path to a dedicated task executor.
+/// </summary>
+/// <remarks>
+/// The supplied handler executes asynchronously using the configured task and queue resources. Frames that cannot be handed off are counted as rejected handoffs.
+/// </remarks>
 class ESPNowAsyncProtocolHandler {
 public:
+    /// <summary>Callback invoked for each frame successfully handed to the protocol worker.</summary>
     using Handler = std::function<void(const ESPNowReceivedFrame&)>;
 
+    /// <summary>Task and queue resources used by the asynchronous protocol worker.</summary>
     struct Configuration {
+        /// <summary>Name assigned to the worker task.</summary>
         const char* Name = "espnowProtocol";
+        /// <summary>Worker stack size in bytes.</summary>
         uint32_t StackSize = ESPRESSIO_ESPNOW_ASYNC_PROTOCOL_STACK_SIZE;
+        /// <summary>Worker scheduling priority.</summary>
         uint32_t Priority = ESPRESSIO_ESPNOW_ASYNC_PROTOCOL_PRIORITY;
+        /// <summary>Processor core affinity, or -1 for platform-selected affinity.</summary>
         int32_t Core = -1;
+        /// <summary>Maximum number of frames that may await asynchronous processing.</summary>
         size_t QueueDepth = ESPRESSIO_ESPNOW_ASYNC_PROTOCOL_QUEUE_DEPTH;
+        /// <summary>Policy applied when the worker queue is full.</summary>
         Task::TaskQueueOverflowPolicy OverflowPolicy =
             Task::TaskQueueOverflowPolicy::Reject;
     };
@@ -52,6 +66,9 @@ public:
     ESPNowAsyncProtocolHandler(const ESPNowAsyncProtocolHandler&) = delete;
     ESPNowAsyncProtocolHandler& operator=(const ESPNowAsyncProtocolHandler&) = delete;
 
+    /// <summary>Initializes and starts the asynchronous handler using default task configuration.</summary>
+    /// <param name="handler">Callback that will process received frames on the worker task.</param>
+    /// <returns>True when the worker was initialized and started successfully.</returns>
     bool Initialize(Handler handler) {
         return Initialize(
             std::move(handler),
@@ -59,6 +76,10 @@ public:
         );
     }
 
+    /// <summary>Initializes and starts the asynchronous handler with explicit worker configuration.</summary>
+    /// <param name="handler">Callback that will process received frames on the worker task.</param>
+    /// <param name="configuration">Task and queue resources for the worker.</param>
+    /// <returns>True when the configuration is valid and the worker starts successfully.</returns>
     bool Initialize(
         Handler handler,
         Configuration configuration
@@ -103,6 +124,7 @@ public:
         return true;
     }
 
+    /// <summary>Stops the worker and releases its executor resources.</summary>
     void Shutdown() {
         _initialized = false;
         if (_executor) {
@@ -111,10 +133,14 @@ public:
         }
     }
 
+    /// <summary>Reports whether the asynchronous worker is currently initialized.</summary>
     bool GetIsInitialized() const noexcept {
         return _initialized;
     }
 
+    /// <summary>Queues a received frame for asynchronous protocol processing.</summary>
+    /// <param name="frame">Frame to hand off to the worker.</param>
+    /// <returns>True when the frame was accepted by the worker queue.</returns>
     bool Submit(const ESPNowReceivedFrame& frame) {
         if (!_initialized || !_executor) {
             return false;
@@ -128,12 +154,14 @@ public:
         return true;
     }
 
+    /// <summary>Returns task-executor queue and execution statistics for the protocol worker.</summary>
     Task::TaskExecutionStatistics GetStatistics() const {
         return _executor
             ? _executor->GetStatistics()
             : Task::TaskExecutionStatistics{};
     }
 
+    /// <summary>Returns the number of frames rejected while handing work to the asynchronous executor.</summary>
     uint64_t GetRejectedHandoffCount() const noexcept {
         return _handoffRejected.load(std::memory_order_acquire);
     }
