@@ -12,15 +12,23 @@
 
 namespace ESPressio::ESPNow {
 
+/// <summary>Fragments and reassembles Security envelopes for carriage within bounded ESP-NOW protocol payloads.</summary>
 class ESPNowSecurityProtocol final {
 public:
+    /// <summary>Wire magic identifying ESP-NOW Security fragments.</summary>
     static constexpr uint32_t Magic = 0x53454345u; // "ECES" little-endian on wire
+    /// <summary>Current fragment protocol version.</summary>
     static constexpr uint8_t Version = 1;
+    /// <summary>Fixed fragment header length in bytes.</summary>
     static constexpr std::size_t HeaderSize = 15;
+    /// <summary>Maximum application bytes carried by one Security fragment.</summary>
     static constexpr std::size_t MaximumFragmentPayload = MaximumFrameSize - 8 - HeaderSize;
+    /// <summary>Maximum number of fragments accepted for one Security envelope.</summary>
     static constexpr std::size_t MaximumFragments = 8;
+    /// <summary>Maximum complete Security envelope size representable by this protocol.</summary>
     static constexpr std::size_t MaximumEnvelopeBytes = MaximumFragmentPayload * MaximumFragments;
 
+    /// <summary>Decoded Security protocol fragment and its application-protocol routing metadata.</summary>
     struct Fragment {
         uint8_t ApplicationProtocol = 0;
         uint32_t MessageID = 0;
@@ -29,6 +37,7 @@ public:
         std::vector<uint8_t> Data;
     };
 
+    /// <summary>Reusable bounded reassembly state for one fragmented Security envelope.</summary>
     struct ReassemblyState {
         MacAddress Source;
         uint8_t ApplicationProtocol = 0;
@@ -38,21 +47,22 @@ public:
         std::array<bool, MaximumFragments> Present{};
         std::size_t Received = 0;
 
+        /// <summary>Clears logical reassembly state while retaining bounded fragment capacity for steady-state reuse.</summary>
         void Reset() {
             Source = MacAddress(); ApplicationProtocol = 0; MessageID = 0; Count = 0; Received = 0;
             Present.fill(false);
             for (auto& f : Fragments) f.clear();
         }
 
-        // Explicitly return retained fragment capacity to the heap at lifecycle
-        // boundaries. Normal Reset() deliberately keeps bounded capacity so
-        // steady-state fragmented traffic does not churn the allocator.
+        /// <summary>Clears reassembly state and explicitly returns retained fragment capacity to the heap.</summary>
         void ReleaseStorage() {
             Reset();
             for (auto& f : Fragments) std::vector<uint8_t>().swap(f);
         }
     };
 
+    /// <summary>Encodes one indexed Security fragment into its wire payload.</summary>
+    /// <returns>False when fragment bounds, count/index, or data arguments are invalid.</returns>
     static bool EncodeFragmentPayload(
         uint8_t applicationProtocol,
         uint32_t messageID,
@@ -72,6 +82,7 @@ public:
         return true;
     }
 
+    /// <summary>Encodes a Fragment value into its wire payload.</summary>
     static bool EncodeFragment(const Fragment& fragment, std::vector<uint8_t>& output) {
         return EncodeFragmentPayload(
             fragment.ApplicationProtocol,
@@ -84,6 +95,8 @@ public:
         );
     }
 
+    /// <summary>Validates and decodes one Security fragment wire payload.</summary>
+    /// <returns>True when magic/version and fragment bounds are valid.</returns>
     static bool DecodeFragment(const uint8_t* data, std::size_t size, Fragment& fragment) {
         fragment = {};
         if (data == nullptr || size < HeaderSize) return false;
@@ -96,6 +109,8 @@ public:
         return true;
     }
 
+    /// <summary>Splits a complete Security envelope into ordered ESP-NOW Security fragment payloads.</summary>
+    /// <returns>False when the envelope is empty, oversized, or otherwise cannot be represented.</returns>
     static bool FragmentEnvelope(uint8_t applicationProtocol, uint32_t messageID, const uint8_t* data, std::size_t size, std::vector<std::vector<uint8_t>>& frames) {
         frames.clear();
         if ((data == nullptr && size != 0) || size == 0 || size > MaximumEnvelopeBytes) return false;
@@ -119,6 +134,9 @@ public:
         return true;
     }
 
+    /// <summary>Accepts one decoded fragment into reusable state and emits the complete ordered envelope once all fragments are present.</summary>
+    /// <param name="completed">Receives the complete envelope only when reassembly finishes.</param>
+    /// <returns>True for a valid partial fragment or successful completion; false for invalid bounds or an oversized assembled envelope.</returns>
     static bool AcceptFragment(ReassemblyState& state, const MacAddress& source, const Fragment& fragment, std::vector<uint8_t>& completed) {
         completed.clear();
         if (fragment.Count == 0 || fragment.Count > MaximumFragments || fragment.Index >= fragment.Count) return false;
