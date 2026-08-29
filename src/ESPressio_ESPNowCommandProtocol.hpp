@@ -3,8 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <map>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -14,6 +12,7 @@
 #endif
 
 #include <ESPressio_Command.hpp>
+#include <ESPressio_Memory.hpp>
 
 namespace ESPressio::ESPNow {
 
@@ -30,6 +29,14 @@ public:
     static constexpr uint32_t Magic = 0x45434D44u; // ECMD
     /// <summary>Current ESP-NOW Command fragment protocol version.</summary>
     static constexpr uint8_t Version = 1;
+    /// <summary>Memory policy used by protocol-owned dynamic byte storage.</summary>
+    static constexpr auto BufferMemoryPolicy =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+    /// <summary>Externally preferred byte buffer used by protocol convenience APIs.</summary>
+    using ByteBuffer = System::Memory::ByteVector<BufferMemoryPolicy>;
+    /// <summary>Externally preferred collection of fully materialized protocol fragments.</summary>
+    using FragmentCollection =
+        System::Memory::Vector<ByteBuffer, BufferMemoryPolicy>;
 
 #pragma pack(push, 1)
     /// <summary>Fixed wire header prepended to each fragmented Command request or response payload.</summary>
@@ -153,7 +160,7 @@ public:
         Reader reader(data, size);
         uint8_t success = 0;
         int32_t code = 0;
-        std::string message;
+        Command::CommandString message;
         if (!reader.ReadU8(success) || success > 1 || !reader.ReadI32(code) || !reader.ReadString(message) || !reader.AtEnd()) return false;
         output.RequestID = requestID;
         output.Result.success = success != 0;
@@ -214,21 +221,25 @@ public:
         return true;
     }
 
-    /// <summary>Builds every wire fragment required for a Command request or response payload.</summary>
+    /// <summary>Builds every wire fragment required for a Command request or response payload using externally preferred storage.</summary>
     /// <returns>Fragments in ascending fragment-index order, or an empty collection when fragmentation is not possible.</returns>
-    static std::vector<std::vector<uint8_t>> BuildFragments(
+    /// <remarks>Latency-sensitive transports should prefer <c>BuildFragment()</c> and send each fragment immediately so all fragments are not materialized simultaneously.</remarks>
+    template<typename TPayloadAllocator>
+    static FragmentCollection BuildFragments(
         ESPNowCommandMessageType type,
         uint64_t requestID,
-        const std::vector<uint8_t>& payload,
+        const std::vector<uint8_t, TPayloadAllocator>& payload,
         std::size_t maximumProtocolPayload
     ) {
-        std::vector<std::vector<uint8_t>> result;
+        FragmentCollection result;
         const std::size_t fragmentCount = GetFragmentCount(payload.size(), maximumProtocolPayload);
         if (fragmentCount == 0) return result;
         result.reserve(fragmentCount);
         for (std::size_t index = 0; index < fragmentCount; ++index) {
-            std::vector<uint8_t> frame;
-            if (!BuildFragment(type, requestID, payload, maximumProtocolPayload, index, frame)) return {};
+            ByteBuffer frame;
+            if (!BuildFragment(type, requestID, payload, maximumProtocolPayload, index, frame)) {
+                return {};
+            }
             result.push_back(std::move(frame));
         }
         return result;
