@@ -93,6 +93,28 @@ private:
     mutable std::recursive_mutex _mutex;
     bool _initialized = false;
 
+    /// <summary>Materializes bounded state-transport tables only when runtime initialization begins.</summary>
+    /// <remarks>Keeping construction allocation-free prevents globally constructed adapters from binding their ExternalPreferred storage to the default provider before ESPressio-ESP32 installs the PSRAM-aware provider.</remarks>
+    bool EnsureStorage() {
+        try {
+            if (_peers.size() != TMaximumPeers) {
+                _peers.assign(TMaximumPeers, PeerRecord{});
+            }
+            if (_pending.size() != MaximumPending) {
+                _pending.assign(MaximumPending, PendingRecord{});
+            }
+            if (_pendingSubscriptions.size() != MaximumPending) {
+                _pendingSubscriptions.assign(
+                    MaximumPending,
+                    PendingSubscriptionRecord{}
+                );
+            }
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
     static State::DeviceIdentifier DeviceFromMac(const MacAddress& address) {
         return State::DeviceIdentifier::FromMacAddress(address.Bytes);
     }
@@ -473,6 +495,8 @@ private:
     }
 
 public:
+    /// <summary>Creates a State transport adapter without allocating its bounded runtime tables.</summary>
+    /// <remarks>Runtime tables are materialized during <c>Initialize()</c> so ExternalPreferred storage can bind to the installed platform memory provider rather than allocating during global construction.</remarks>
     ESPNowStateTransport(
         Publisher& publisher,
         RemoteManager& remote,
@@ -481,14 +505,11 @@ public:
     ) : _transport(transport),
         _publisher(publisher),
         _remote(remote),
-        _subscriptions(subscriptions),
-        _peers(TMaximumPeers),
-        _pending(MaximumPending),
-        _pendingSubscriptions(MaximumPending) {}
+        _subscriptions(subscriptions) {}
 
     bool Initialize() {
         if (_initialized) return true;
-        if (!_transport.GetIsInitialized()) return false;
+        if (!_transport.GetIsInitialized() || !EnsureStorage()) return false;
         if (!_transport.RegisterProtocolHandler(
                 static_cast<uint8_t>(ESPNowProtocol::StateTransport),
                 [this](const ESPNowReceivedFrame& frame) { HandleFrame(frame); })) {
