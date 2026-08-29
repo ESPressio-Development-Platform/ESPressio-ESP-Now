@@ -61,7 +61,6 @@ private:
     using ExecutorPtr = System::Memory::UniquePtr<Executor, ExternalPreferred>;
 
     Configuration _configuration;
-    Handler _handler;
     ExecutorPtr _executor;
     std::atomic<uint64_t> _handoffRejected{0};
     bool _initialized = false;
@@ -96,7 +95,6 @@ public:
         }
 
         _configuration = configuration;
-        _handler = std::move(handler);
 
         Task::TaskConfiguration taskConfiguration;
         taskConfiguration.Name = configuration.Name;
@@ -112,19 +110,17 @@ public:
         );
 
         const auto initialized = executor->Initialize(
-            [this](const ESPNowReceivedFrame& frame) {
-                if (_handler) _handler(frame);
+            [handler = std::move(handler)](const ESPNowReceivedFrame& frame) {
+                handler(frame);
             }
         );
 
         if (initialized != Task::TaskExecutionStatus::Success) {
-            _handler = {};
             return false;
         }
 
         if (executor->Start() != Task::TaskExecutionStatus::Success) {
             executor->Stop();
-            _handler = {};
             return false;
         }
 
@@ -141,7 +137,6 @@ public:
             _executor->Stop();
             _executor.reset();
         }
-        _handler = {};
     }
 
     /// <summary>Reports whether the asynchronous worker is currently initialized.</summary>
