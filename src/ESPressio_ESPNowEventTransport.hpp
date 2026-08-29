@@ -17,10 +17,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <mutex>
-#include <vector>
 
 #include <ESPressio_EventTransport.hpp>
+#include <ESPressio_Memory.hpp>
 
 #include "ESPressio_ESPNowAsyncProtocolHandler.hpp"
 #include "ESPressio_ESPNowTransport.hpp"
@@ -45,7 +46,7 @@
 namespace ESPressio::ESPNow {
 
 /// <summary>Implements the ESPressio Event byte-transport contract over fragmented ESP-NOW protocol frames.</summary>
-/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before fragment reassembly and Event deserialization. Outbound Event packets are broadcast to the configured destination set.</remarks>
+/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Event deserialization. Single-fragment Events are delivered directly from the queued frame without reassembly allocation; multi-fragment storage prefers external memory. Outbound Event packets are broadcast to the configured destination set.</remarks>
 class ESPNowEventTransport final :
     public Event::IEventTransport {
 
@@ -71,6 +72,12 @@ private:
         MaximumFrameSize - ESPNowWireHeaderSize;
     static constexpr std::size_t MaximumFragmentPayload =
         MaximumProtocolPayload - sizeof(FragmentHeader);
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+
+    template<typename T>
+    using ExternalVector = System::Memory::Vector<T, ExternalPreferred>;
+    using ByteBuffer = System::Memory::ByteVector<ExternalPreferred>;
 
     static_assert(
         MaximumFragmentPayload > 0,
@@ -84,15 +91,17 @@ private:
         uint16_t FragmentCount = 0;
         uint16_t ReceivedCount = 0;
         uint64_t LastReceiveMonotonicNanoseconds = 0;
-        std::vector<uint8_t> Data;
-        std::vector<bool> Received;
+        ByteBuffer Data;
+        ExternalVector<uint8_t> Received;
     };
+
+    using ReassemblyStorage = ExternalVector<Reassembly>;
 
     ESPNowTransport* _transport = nullptr;
     Event::IEventTransportReceiver* _receiver = nullptr;
     std::array<MacAddress, ESPRESSIO_ESPNOW_EVENT_MAX_DESTINATIONS> _destinations{};
     std::size_t _destinationCount = 0;
-    std::vector<Reassembly> _reassemblies;
+    ReassemblyStorage _reassemblies;
     ESPNowAsyncProtocolHandler _asyncHandler;
     mutable std::mutex _mutex;
     bool _initialized = false;
@@ -124,7 +133,34 @@ private:
             return;
         }
 
-        std::vector<uint8_t> completed;
+        // ESPNowReceivedFrame owns its payload inline and TaskExecutor copies
+        // that complete trivially-copyable frame into the asynchronous queue.
+        // Therefore the payload remains valid for this entire worker callback.
+        // Most Events fit one fragment, so avoid any reassembly allocation/copy.
+        if (header.FragmentCount == 1) {
+            if (
+                header.FragmentIndex != 0 ||
+                header.FragmentLength != header.TotalLength
+            ) {
+                return;
+            }
+
+            Event::IEventTransportReceiver* receiver = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(_mutex);
+                receiver = _receiver;
+            }
+            if (receiver != nullptr) {
+                receiver->ReceiveEventTransportPacket(
+                    this,
+                    frame.Payload + sizeof(FragmentHeader),
+                    header.FragmentLength
+                );
+            }
+            return;
+        }
+
+        ByteBuffer completed;
         Event::IEventTransportReceiver* receiver = nullptr;
 
         {
@@ -183,7 +219,7 @@ private:
                 reassembly.LastReceiveMonotonicNanoseconds =
                     frame.ReceiveMonotonicNanoseconds;
                 reassembly.Data.resize(header.TotalLength);
-                reassembly.Received.resize(header.FragmentCount, false);
+                reassembly.Received.assign(header.FragmentCount, 0u);
                 _reassemblies.push_back(std::move(reassembly));
                 found = std::prev(_reassemblies.end());
             }
@@ -199,13 +235,13 @@ private:
             found->LastReceiveMonotonicNanoseconds =
                 frame.ReceiveMonotonicNanoseconds;
 
-            if (!found->Received[header.FragmentIndex]) {
+            if (found->Received[header.FragmentIndex] == 0u) {
                 std::memcpy(
                     found->Data.data() + offset,
                     frame.Payload + sizeof(FragmentHeader),
                     header.FragmentLength
                 );
-                found->Received[header.FragmentIndex] = true;
+                found->Received[header.FragmentIndex] = 1u;
                 ++found->ReceivedCount;
             }
 
@@ -322,6 +358,13 @@ public:
 
         _transport = &transport;
         asyncConfiguration.Name = "espnowEvent";
+
+        try {
+            _reassemblies.reserve(ESPRESSIO_ESPNOW_EVENT_MAX_REASSEMBLIES);
+        } catch (...) {
+            _transport = nullptr;
+            return false;
+        }
 
         if (!_asyncHandler.Initialize(
                 [this](const ESPNowReceivedFrame& frame) {
