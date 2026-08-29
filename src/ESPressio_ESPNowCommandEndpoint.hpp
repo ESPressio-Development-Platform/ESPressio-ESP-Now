@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <ESPressio_CommandEnvelope.hpp>
+#include <ESPressio_Memory.hpp>
 
 #include "ESPressio_ESPNowCommandProtocol.hpp"
 
@@ -75,6 +76,15 @@ public:
         _registry = &registry;
         _config = config;
         _sender = std::move(sender);
+
+        // Reserve bounded endpoint tables once. Their backing storage prefers
+        // external memory, avoiding repeated internal-heap growth as traffic
+        // approaches the configured capacities.
+        _pending.reserve(_config.MaximumOutstandingRequests);
+        _inbound.reserve(_config.MaximumInboundRequests);
+        _reassemblies.reserve(_config.MaximumReassemblies);
+        _duplicates.reserve(_config.MaximumDuplicateResults);
+
         _initialized = true;
         return true;
     }
@@ -125,7 +135,7 @@ public:
             _pending.size() >= _config.MaximumOutstandingRequests) return false;
         uint64_t id = _nextRequestID++;
         if (id == 0) id = _nextRequestID++;
-        std::vector<uint8_t> payload;
+        ByteBuffer payload;
         if (!ESPNowCommandProtocol::EncodeRequest(invocation, payload) || payload.empty() ||
             payload.size() > _config.MaximumMessageBytes) return false;
         PendingRequest pending;
@@ -152,6 +162,23 @@ public:
         const uint8_t* fragmentData = nullptr;
         if (!ESPNowCommandProtocol::ParseFragmentHeader(data, size, header, fragmentData) ||
             header.TotalLength > _config.MaximumMessageBytes) return false;
+
+        // The overwhelming majority of Command messages fit in one ESP-NOW
+        // frame. Decode those directly from the borrowed receive buffer rather
+        // than allocating reassembly storage and then copying into a second
+        // contiguous message buffer.
+        if (header.FragmentCount == 1) {
+            if (header.FragmentIndex != 0 || header.FragmentLength != header.TotalLength) return false;
+            return DispatchCompletePayload(
+                peer,
+                header.Type,
+                header.RequestID,
+                fragmentData,
+                header.FragmentLength,
+                nowMilliseconds
+            );
+        }
+
         auto* reassembly = FindReassembly(peer, header.RequestID, header.Type);
         if (reassembly == nullptr) {
             if (_reassemblies.size() >= _config.MaximumReassemblies) return false;
@@ -164,16 +191,16 @@ public:
             state.StartedMilliseconds = nowMilliseconds;
             state.LastUpdatedMilliseconds = nowMilliseconds;
             state.Fragments.resize(header.FragmentCount);
-            state.Received.assign(header.FragmentCount, false);
+            state.Received.assign(header.FragmentCount, 0u);
             _reassemblies.push_back(std::move(state));
             reassembly = &_reassemblies.back();
         }
         if (reassembly->TotalLength != header.TotalLength || reassembly->FragmentCount != header.FragmentCount) return false;
         reassembly->LastUpdatedMilliseconds = nowMilliseconds;
         const std::size_t index = header.FragmentIndex;
-        if (!reassembly->Received[index]) {
+        if (reassembly->Received[index] == 0u) {
             reassembly->Fragments[index].assign(fragmentData, fragmentData + header.FragmentLength);
-            reassembly->Received[index] = true;
+            reassembly->Received[index] = 1u;
             reassembly->ReceivedBytes += header.FragmentLength;
         } else {
             const auto& existing = reassembly->Fragments[index];
@@ -181,8 +208,9 @@ public:
                 !std::equal(existing.begin(), existing.end(), fragmentData)) return false;
         }
         if (reassembly->ReceivedBytes > reassembly->TotalLength) return false;
-        if (!std::all_of(reassembly->Received.begin(), reassembly->Received.end(), [](bool value){ return value; })) return true;
-        std::vector<uint8_t> complete;
+        if (!std::all_of(reassembly->Received.begin(), reassembly->Received.end(), [](uint8_t value){ return value != 0u; })) return true;
+
+        ByteBuffer complete;
         complete.reserve(reassembly->TotalLength);
         for (const auto& fragment : reassembly->Fragments) {
             complete.insert(complete.end(), fragment.begin(), fragment.end());
@@ -191,13 +219,14 @@ public:
         const uint8_t type = reassembly->Type;
         const uint64_t id = reassembly->RequestID;
         RemoveReassembly(reassembly);
-        switch (static_cast<ESPNowCommandMessageType>(type)) {
-            case ESPNowCommandMessageType::Request:
-                return HandleRequest(peer, id, complete, nowMilliseconds);
-            case ESPNowCommandMessageType::Response:
-                return HandleResponse(peer, id, complete);
-        }
-        return false;
+        return DispatchCompletePayload(
+            peer,
+            type,
+            id,
+            complete.data(),
+            complete.size(),
+            nowMilliseconds
+        );
     }
 
     /// <summary>Completes a previously handed-off inbound request and sends/caches its response.</summary>
@@ -259,6 +288,13 @@ public:
     }
 
 private:
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+
+    template<typename T>
+    using ExternalVector = System::Memory::Vector<T, ExternalPreferred>;
+    using ByteBuffer = System::Memory::ByteVector<ExternalPreferred>;
+
     struct PendingRequest {
         ESPNowCommandPeerAddress Peer;
         uint64_t RequestID = 0;
@@ -279,14 +315,14 @@ private:
         std::size_t ReceivedBytes = 0;
         uint64_t StartedMilliseconds = 0;
         uint64_t LastUpdatedMilliseconds = 0;
-        std::vector<std::vector<uint8_t>> Fragments;
-        std::vector<bool> Received;
+        ExternalVector<ByteBuffer> Fragments;
+        ExternalVector<uint8_t> Received;
     };
     struct DuplicateResult {
         ESPNowCommandPeerAddress Peer;
         uint64_t RequestID = 0;
         uint64_t CreatedMilliseconds = 0;
-        std::vector<uint8_t> EncodedResponse;
+        ByteBuffer EncodedResponse;
     };
 
     Command::CommandRegistry* _registry = nullptr;
@@ -295,22 +331,22 @@ private:
     PolicyHandler _policy;
     ResultObserver _observer;
     InboundRequestHandler _inboundHandler;
-    std::vector<PendingRequest> _pending;
-    std::vector<InboundRequest> _inbound;
-    std::vector<Reassembly> _reassemblies;
-    std::vector<DuplicateResult> _duplicates;
+    ExternalVector<PendingRequest> _pending;
+    ExternalVector<InboundRequest> _inbound;
+    ExternalVector<Reassembly> _reassemblies;
+    ExternalVector<DuplicateResult> _duplicates;
     uint64_t _nextRequestID = 1;
     bool _initialized = false;
 
     static uint64_t Elapsed(uint64_t now, uint64_t then) { return now >= then ? now - then : 0; }
 
     bool SendPayload(const ESPNowCommandPeerAddress& peer, ESPNowCommandMessageType type, uint64_t requestID,
-                     const std::vector<uint8_t>& payload) {
+                     const ByteBuffer& payload) {
         const std::size_t count = ESPNowCommandProtocol::GetFragmentCount(
             payload.size(), _config.MaximumProtocolPayloadBytes
         );
         if (count == 0) return false;
-        std::vector<uint8_t> frame;
+        ByteBuffer frame;
         frame.reserve(_config.MaximumProtocolPayloadBytes);
         for (std::size_t index = 0; index < count; ++index) {
             if (!ESPNowCommandProtocol::BuildFragment(
@@ -318,6 +354,23 @@ private:
             if (!_sender(peer, frame.data(), frame.size())) return false;
         }
         return true;
+    }
+
+    bool DispatchCompletePayload(
+        const ESPNowCommandPeerAddress& peer,
+        uint8_t type,
+        uint64_t requestID,
+        const uint8_t* payload,
+        std::size_t payloadSize,
+        uint64_t nowMilliseconds
+    ) {
+        switch (static_cast<ESPNowCommandMessageType>(type)) {
+            case ESPNowCommandMessageType::Request:
+                return HandleRequest(peer, requestID, payload, payloadSize, nowMilliseconds);
+            case ESPNowCommandMessageType::Response:
+                return HandleResponse(peer, requestID, payload, payloadSize);
+        }
+        return false;
     }
 
     Reassembly* FindReassembly(const ESPNowCommandPeerAddress& peer, uint64_t requestID, uint8_t type) {
@@ -358,7 +411,7 @@ private:
     }
 
     DuplicateResult* StoreDuplicate(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
-                                    uint64_t nowMilliseconds, std::vector<uint8_t> encodedResponse) {
+                                    uint64_t nowMilliseconds, ByteBuffer encodedResponse) {
         if (_duplicates.size() >= _config.MaximumDuplicateResults) {
             _duplicates.erase(_duplicates.begin());
         }
@@ -371,8 +424,13 @@ private:
         return &_duplicates.back();
     }
 
-    bool HandleRequest(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
-                       const std::vector<uint8_t>& payload, uint64_t nowMilliseconds) {
+    bool HandleRequest(
+        const ESPNowCommandPeerAddress& peer,
+        uint64_t requestID,
+        const uint8_t* payload,
+        std::size_t payloadSize,
+        uint64_t nowMilliseconds
+    ) {
         if (auto* duplicate = FindDuplicate(peer, requestID)) {
             return SendPayload(peer, ESPNowCommandMessageType::Response, requestID, duplicate->EncodedResponse);
         }
@@ -384,7 +442,7 @@ private:
         }
 
         ESPNowCommandProtocol::Request request;
-        if (!ESPNowCommandProtocol::DecodeRequest(requestID, payload.data(), payload.size(), request)) {
+        if (!ESPNowCommandProtocol::DecodeRequest(requestID, payload, payloadSize, request)) {
             return SendErrorResponse(peer, requestID, "Malformed ESP-NOW Command request", 5, nowMilliseconds);
         }
 
@@ -435,7 +493,7 @@ private:
 
     bool SendResponseAndCache(const ESPNowCommandPeerAddress& peer, uint64_t requestID,
                               const Command::CommandResult& result, uint64_t nowMilliseconds) {
-        std::vector<uint8_t> payload;
+        ByteBuffer payload;
         if (!ESPNowCommandProtocol::EncodeResponse(result, payload) || payload.empty() ||
             payload.size() > _config.MaximumMessageBytes) return false;
         auto* cached = StoreDuplicate(peer, requestID, nowMilliseconds, std::move(payload));
@@ -443,9 +501,14 @@ private:
             SendPayload(peer, ESPNowCommandMessageType::Response, requestID, cached->EncodedResponse);
     }
 
-    bool HandleResponse(const ESPNowCommandPeerAddress& peer, uint64_t requestID, const std::vector<uint8_t>& payload) {
+    bool HandleResponse(
+        const ESPNowCommandPeerAddress& peer,
+        uint64_t requestID,
+        const uint8_t* payload,
+        std::size_t payloadSize
+    ) {
         ESPNowCommandProtocol::Response response;
-        if (!ESPNowCommandProtocol::DecodeResponse(requestID, payload.data(), payload.size(), response)) return false;
+        if (!ESPNowCommandProtocol::DecodeResponse(requestID, payload, payloadSize, response)) return false;
         for (std::size_t i = 0; i < _pending.size(); ++i) {
             if (_pending[i].Peer == peer && _pending[i].RequestID == requestID) {
                 auto handler = std::move(_pending[i].Completion);
