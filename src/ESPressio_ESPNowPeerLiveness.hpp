@@ -1,9 +1,10 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+
+#include <ESPressio_Memory.hpp>
 
 #include "ESPressio_ESPNowTypes.hpp"
 
@@ -40,7 +41,7 @@ struct ESPNowPeerLivenessSnapshot {
 };
 
 /// <summary>Tracks last-seen timestamps for a fixed-capacity collection of ESP-NOW peers.</summary>
-/// <remarks>Liveness is derived lazily from the caller-supplied current monotonic time; the tracker does not create a background task.</remarks>
+/// <remarks>Liveness is derived lazily from caller-supplied monotonic time and creates no background task. The bounded peer table is materialized lazily in ESPressio System ExternalPreferred storage so unused trackers remain allocation-free and active trackers do not reserve internal DRAM.</remarks>
 class ESPNowPeerLivenessTracker {
 private:
     struct PeerRecord {
@@ -49,9 +50,29 @@ private:
         uint64_t LastSeenNanoseconds = 0;
     };
 
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+    using PeerStorage = System::Memory::Vector<
+        PeerRecord,
+        ExternalPreferred
+    >;
+
     ESPNowPeerLivenessConfig _config;
-    std::array<PeerRecord, ESPRESSIO_ESPNOW_MAX_LIVENESS_PEERS> _peers{};
+    mutable PeerStorage _peers;
     mutable std::mutex _mutex;
+
+    bool EnsureStorageLocked() const {
+        if (_peers.size() == ESPRESSIO_ESPNOW_MAX_LIVENESS_PEERS) return true;
+        try {
+            _peers.assign(
+                ESPRESSIO_ESPNOW_MAX_LIVENESS_PEERS,
+                PeerRecord{}
+            );
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
 
     static uint64_t Elapsed(uint64_t now, uint64_t then) noexcept {
         return now >= then ? now - then : 0;
@@ -66,7 +87,7 @@ private:
     }
 
 public:
-    /// <summary>Creates a tracker with the supplied liveness thresholds.</summary>
+    /// <summary>Creates an allocation-free tracker with the supplied liveness thresholds.</summary>
     /// <param name="config">Thresholds used to classify observed peers.</param>
     explicit ESPNowPeerLivenessTracker(
         const ESPNowPeerLivenessConfig& config = ESPNowPeerLivenessConfig()
@@ -83,6 +104,7 @@ public:
     bool Observe(const MacAddress& address, uint64_t nowNanoseconds) {
         if (address.IsZero()) return false;
         std::lock_guard<std::mutex> lock(_mutex);
+        if (!EnsureStorageLocked()) return false;
         PeerRecord* freeRecord = nullptr;
         for (auto& peer : _peers) {
             if (peer.Used && peer.Address == address) {
@@ -102,6 +124,7 @@ public:
     /// <returns>True when a matching tracked peer was removed.</returns>
     bool Forget(const MacAddress& address) {
         std::lock_guard<std::mutex> lock(_mutex);
+        if (!EnsureStorageLocked()) return false;
         for (auto& peer : _peers) {
             if (peer.Used && peer.Address == address) {
                 peer = PeerRecord();
@@ -114,9 +137,10 @@ public:
     /// <summary>Evaluates the current liveness state for a peer.</summary>
     /// <param name="address">Peer to inspect.</param>
     /// <param name="nowNanoseconds">Current monotonic time in nanoseconds.</param>
-    /// <returns>The derived liveness state, or Unknown when the peer has not been tracked.</returns>
+    /// <returns>The derived liveness state, or Unknown when the peer has not been tracked or storage is unavailable.</returns>
     ESPNowPeerLivenessState GetState(const MacAddress& address, uint64_t nowNanoseconds) const {
         std::lock_guard<std::mutex> lock(_mutex);
+        if (!EnsureStorageLocked()) return ESPNowPeerLivenessState::Unknown;
         for (const auto& peer : _peers) {
             if (peer.Used && peer.Address == address) return StateFor(peer, nowNanoseconds);
         }
@@ -135,6 +159,7 @@ public:
     ) const {
         if (output == nullptr || capacity == 0) return 0;
         std::lock_guard<std::mutex> lock(_mutex);
+        if (!EnsureStorageLocked()) return 0;
         std::size_t count = 0;
         for (const auto& peer : _peers) {
             if (!peer.Used || count >= capacity) continue;
