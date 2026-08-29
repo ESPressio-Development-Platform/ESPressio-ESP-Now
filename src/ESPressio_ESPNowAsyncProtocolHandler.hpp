@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <utility>
 
+#include <ESPressio_Memory.hpp>
 #include <ESPressio_Task.hpp>
 
 #include "ESPressio_ESPNowTransport.hpp"
@@ -30,7 +30,7 @@ namespace ESPNow {
 /// Moves received ESP-NOW protocol frames from the transport callback path to a dedicated task executor.
 /// </summary>
 /// <remarks>
-/// The supplied handler executes asynchronously using the configured task and queue resources. Frames that cannot be handed off are counted as rejected handoffs.
+/// The supplied handler executes asynchronously using the configured task and queue resources. Frames that cannot be handed off are counted as rejected handoffs. Executor object storage and queue backing prefer external memory; the underlying task stack remains on the platform-safe execution path.
 /// </remarks>
 class ESPNowAsyncProtocolHandler {
 public:
@@ -55,8 +55,14 @@ public:
     };
 
 private:
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+    using Executor = Task::TaskExecutor<ESPNowReceivedFrame>;
+    using ExecutorPtr = System::Memory::UniquePtr<Executor, ExternalPreferred>;
+
     Configuration _configuration;
-    std::unique_ptr<Task::TaskExecutor<ESPNowReceivedFrame>> _executor;
+    Handler _handler;
+    ExecutorPtr _executor;
     std::atomic<uint64_t> _handoffRejected{0};
     bool _initialized = false;
 
@@ -90,6 +96,7 @@ public:
         }
 
         _configuration = configuration;
+        _handler = std::move(handler);
 
         Task::TaskConfiguration taskConfiguration;
         taskConfiguration.Name = configuration.Name;
@@ -98,23 +105,26 @@ public:
         taskConfiguration.Core = configuration.Core;
         taskConfiguration.QueueDepth = configuration.QueueDepth;
         taskConfiguration.OverflowPolicy = configuration.OverflowPolicy;
+        taskConfiguration.MemoryPolicy = Task::TaskMemoryPolicy::PreferExternal;
 
-        auto executor =
-            std::make_unique<Task::TaskExecutor<ESPNowReceivedFrame>>(
-                taskConfiguration
-            );
+        auto executor = System::Memory::MakeUnique<Executor, ExternalPreferred>(
+            taskConfiguration
+        );
 
         const auto initialized = executor->Initialize(
-            [handler = std::move(handler)](const ESPNowReceivedFrame& frame) {
-                handler(frame);
+            [this](const ESPNowReceivedFrame& frame) {
+                if (_handler) _handler(frame);
             }
         );
 
         if (initialized != Task::TaskExecutionStatus::Success) {
+            _handler = {};
             return false;
         }
 
         if (executor->Start() != Task::TaskExecutionStatus::Success) {
+            executor->Stop();
+            _handler = {};
             return false;
         }
 
@@ -131,6 +141,7 @@ public:
             _executor->Stop();
             _executor.reset();
         }
+        _handler = {};
     }
 
     /// <summary>Reports whether the asynchronous worker is currently initialized.</summary>
