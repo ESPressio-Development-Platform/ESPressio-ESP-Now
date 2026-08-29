@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -238,7 +239,9 @@ int main() {
     longEcho.positional = {longValue};
     bool echoCompleted = false;
     assert(endpointA.Invoke(peerB, longEcho, [&](const Command::CommandResult& result) {
-        echoCompleted = result.success && result.message == longValue;
+        echoCompleted = result.success &&
+            std::string_view(result.message.data(), result.message.size()) ==
+                std::string_view(longValue.data(), longValue.size());
     }, 300));
     assert(aToB.size() > 2);
     Deliver(aToB, endpointB, peerA, 301, true);
