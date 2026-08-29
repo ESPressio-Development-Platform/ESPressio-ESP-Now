@@ -12,6 +12,7 @@ using namespace ESPressio;
 namespace {
 
 using Peer = ESPNow::ESPNowCommandPeerAddress;
+using FragmentCollection = ESPNow::ESPNowCommandProtocol::FragmentCollection;
 
 Peer MakePeer(uint8_t value) {
     Peer peer;
@@ -24,7 +25,7 @@ struct Frame {
     std::vector<uint8_t> Data;
 };
 
-std::vector<std::vector<uint8_t>> BuildRequestFrames(
+FragmentCollection BuildRequestFrames(
     uint64_t requestId,
     const Command::CommandInvocation& invocation,
     std::size_t maximumPayload
@@ -115,7 +116,7 @@ Command::CommandResult DecodeResponse(
 void DeliverRequest(
     ESPNow::ESPNowCommandEndpoint& endpoint,
     const Peer& source,
-    const std::vector<std::vector<uint8_t>>& frames,
+    const FragmentCollection& frames,
     uint64_t now
 ) {
     for (const auto& frame : frames) {
