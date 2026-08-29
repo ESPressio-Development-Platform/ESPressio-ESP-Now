@@ -5,10 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <map>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include <ESPressio_CommandEnvelope.hpp>
 #include <ESPressio_Memory.hpp>
@@ -165,8 +162,7 @@ public:
 
         // The overwhelming majority of Command messages fit in one ESP-NOW
         // frame. Decode those directly from the borrowed receive buffer rather
-        // than allocating reassembly storage and then copying into a second
-        // contiguous message buffer.
+        // than allocating any reassembly storage.
         if (header.FragmentCount == 1) {
             if (header.FragmentIndex != 0 || header.FragmentLength != header.TotalLength) return false;
             return DispatchCompletePayload(
@@ -177,6 +173,17 @@ public:
                 header.FragmentLength,
                 nowMilliseconds
             );
+        }
+
+        const std::size_t fragmentCapacity =
+            _config.MaximumProtocolPayloadBytes - ESPNowCommandProtocol::FragmentHeaderSize;
+        const std::size_t fragmentOffset =
+            static_cast<std::size_t>(header.FragmentIndex) * fragmentCapacity;
+        if (
+            fragmentOffset >= header.TotalLength ||
+            header.FragmentLength > header.TotalLength - fragmentOffset
+        ) {
+            return false;
         }
 
         auto* reassembly = FindReassembly(peer, header.RequestID, header.Type);
@@ -190,7 +197,11 @@ public:
             state.FragmentCount = header.FragmentCount;
             state.StartedMilliseconds = nowMilliseconds;
             state.LastUpdatedMilliseconds = nowMilliseconds;
-            state.Fragments.resize(header.FragmentCount);
+
+            // Allocate one final externally-preferred payload buffer up-front.
+            // Each fragment is copied directly to its final offset, avoiding
+            // per-fragment allocations and the previous second full-message copy.
+            state.Buffer.resize(header.TotalLength);
             state.Received.assign(header.FragmentCount, 0u);
             _reassemblies.push_back(std::move(state));
             reassembly = &_reassemblies.back();
@@ -198,26 +209,21 @@ public:
         if (reassembly->TotalLength != header.TotalLength || reassembly->FragmentCount != header.FragmentCount) return false;
         reassembly->LastUpdatedMilliseconds = nowMilliseconds;
         const std::size_t index = header.FragmentIndex;
+        uint8_t* destination = reassembly->Buffer.data() + fragmentOffset;
         if (reassembly->Received[index] == 0u) {
-            reassembly->Fragments[index].assign(fragmentData, fragmentData + header.FragmentLength);
+            std::copy(fragmentData, fragmentData + header.FragmentLength, destination);
             reassembly->Received[index] = 1u;
             reassembly->ReceivedBytes += header.FragmentLength;
         } else {
-            const auto& existing = reassembly->Fragments[index];
-            if (existing.size() != header.FragmentLength ||
-                !std::equal(existing.begin(), existing.end(), fragmentData)) return false;
+            if (!std::equal(fragmentData, fragmentData + header.FragmentLength, destination)) return false;
         }
         if (reassembly->ReceivedBytes > reassembly->TotalLength) return false;
         if (!std::all_of(reassembly->Received.begin(), reassembly->Received.end(), [](uint8_t value){ return value != 0u; })) return true;
+        if (reassembly->ReceivedBytes != reassembly->TotalLength) return false;
 
-        ByteBuffer complete;
-        complete.reserve(reassembly->TotalLength);
-        for (const auto& fragment : reassembly->Fragments) {
-            complete.insert(complete.end(), fragment.begin(), fragment.end());
-        }
-        if (complete.size() != reassembly->TotalLength) return false;
         const uint8_t type = reassembly->Type;
         const uint64_t id = reassembly->RequestID;
+        ByteBuffer complete = std::move(reassembly->Buffer);
         RemoveReassembly(reassembly);
         return DispatchCompletePayload(
             peer,
@@ -243,7 +249,7 @@ public:
         Command::CommandResult result;
         result.success = response.Success;
         result.code = response.Code;
-        result.message = response.MessageString();
+        result.message.assign(response.Message.data(), response.MessageLength);
 
         ESPNowCommandInvocationContext context = std::move(inbound->Context);
         RemoveInbound(inbound);
@@ -315,7 +321,7 @@ private:
         std::size_t ReceivedBytes = 0;
         uint64_t StartedMilliseconds = 0;
         uint64_t LastUpdatedMilliseconds = 0;
-        ExternalVector<ByteBuffer> Fragments;
+        ByteBuffer Buffer;
         ExternalVector<uint8_t> Received;
     };
     struct DuplicateResult {
