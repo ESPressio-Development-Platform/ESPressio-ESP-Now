@@ -61,9 +61,13 @@ public:
         Command::CommandResult Result;
     };
 
-    /// <summary>Encodes a Command invocation into the protocol request payload representation.</summary>
+    /// <summary>Encodes a Command invocation into the protocol request payload representation while preserving the caller's byte-buffer allocator.</summary>
     /// <returns>True when every path/argument/raw string can be represented by the wire format.</returns>
-    static bool EncodeRequest(const Command::CommandInvocation& invocation, std::vector<uint8_t>& output) {
+    template<typename TAllocator>
+    static bool EncodeRequest(
+        const Command::CommandInvocation& invocation,
+        std::vector<uint8_t, TAllocator>& output
+    ) {
         output.clear();
         if (invocation.path.empty()) return false;
         AppendU16(output, invocation.path.size());
@@ -78,8 +82,12 @@ public:
         return AppendString(output, invocation.raw);
     }
 
-    /// <summary>Encodes the invocation contained by a decoded/request wrapper.</summary>
-    static bool EncodeRequest(const Request& request, std::vector<uint8_t>& output) {
+    /// <summary>Encodes the invocation contained by a decoded/request wrapper while preserving the caller's byte-buffer allocator.</summary>
+    template<typename TAllocator>
+    static bool EncodeRequest(
+        const Request& request,
+        std::vector<uint8_t, TAllocator>& output
+    ) {
         return EncodeRequest(request.Invocation, output);
     }
 
@@ -117,16 +125,24 @@ public:
         return true;
     }
 
-    /// <summary>Encodes a Command result into the protocol response payload representation.</summary>
-    static bool EncodeResponse(const Command::CommandResult& result, std::vector<uint8_t>& output) {
+    /// <summary>Encodes a Command result into the protocol response payload representation while preserving the caller's byte-buffer allocator.</summary>
+    template<typename TAllocator>
+    static bool EncodeResponse(
+        const Command::CommandResult& result,
+        std::vector<uint8_t, TAllocator>& output
+    ) {
         output.clear();
         output.push_back(result.success ? 1u : 0u);
         AppendI32(output, result.code);
         return AppendString(output, result.message);
     }
 
-    /// <summary>Encodes the Command result contained by a response wrapper.</summary>
-    static bool EncodeResponse(const Response& response, std::vector<uint8_t>& output) {
+    /// <summary>Encodes the Command result contained by a response wrapper while preserving the caller's byte-buffer allocator.</summary>
+    template<typename TAllocator>
+    static bool EncodeResponse(
+        const Response& response,
+        std::vector<uint8_t, TAllocator>& output
+    ) {
         return EncodeResponse(response.Result, output);
     }
 
@@ -168,15 +184,16 @@ public:
         return count == 0 || count > 0xFFFFu ? 0 : count;
     }
 
-    /// <summary>Builds one indexed fragment for a Command request or response payload.</summary>
+    /// <summary>Builds one indexed fragment for a Command request or response payload without changing either buffer's allocator.</summary>
     /// <returns>True when the requested fragment index and payload can be represented.</returns>
+    template<typename TPayloadAllocator, typename TFrameAllocator>
     static bool BuildFragment(
         ESPNowCommandMessageType type,
         uint64_t requestID,
-        const std::vector<uint8_t>& payload,
+        const std::vector<uint8_t, TPayloadAllocator>& payload,
         std::size_t maximumProtocolPayload,
         std::size_t fragmentIndex,
-        std::vector<uint8_t>& frame
+        std::vector<uint8_t, TFrameAllocator>& frame
     ) {
         const std::size_t fragmentCount = GetFragmentCount(payload.size(), maximumProtocolPayload);
         if (fragmentCount == 0 || fragmentIndex >= fragmentCount) return false;
@@ -218,26 +235,41 @@ public:
     }
 
 private:
-    template<typename TString>
-    static bool AppendString(std::vector<uint8_t>& out, const TString& value) {
+    template<typename TAllocator, typename TString>
+    static bool AppendString(
+        std::vector<uint8_t, TAllocator>& out,
+        const TString& value
+    ) {
         if (value.size() > 0xFFFFu) return false;
         AppendU16(out, value.size());
         out.insert(out.end(), value.begin(), value.end());
         return true;
     }
 
-    static bool AppendCommandValue(std::vector<uint8_t>& out, const Command::CommandValue& value) {
+    template<typename TAllocator>
+    static bool AppendCommandValue(
+        std::vector<uint8_t, TAllocator>& out,
+        const Command::CommandValue& value
+    ) {
         if (value.IsNull()) return false;
         return AppendString(out, value.ToString());
     }
 
-    static void AppendU16(std::vector<uint8_t>& out, std::size_t value) {
+    template<typename TAllocator>
+    static void AppendU16(
+        std::vector<uint8_t, TAllocator>& out,
+        std::size_t value
+    ) {
         const uint16_t v = static_cast<uint16_t>(value);
         out.push_back(static_cast<uint8_t>(v & 0xFFu));
         out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
     }
 
-    static void AppendI32(std::vector<uint8_t>& out, int value) {
+    template<typename TAllocator>
+    static void AppendI32(
+        std::vector<uint8_t, TAllocator>& out,
+        int value
+    ) {
         const uint32_t v = static_cast<uint32_t>(static_cast<int32_t>(value));
         out.push_back(static_cast<uint8_t>(v & 0xFFu));
         out.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
@@ -292,4 +324,4 @@ private:
     };
 };
 
-}
+} // namespace ESPressio::ESPNow
