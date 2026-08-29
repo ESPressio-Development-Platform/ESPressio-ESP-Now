@@ -13,6 +13,16 @@ jobs:
           path: project/ESPressio-ESP-Now
       - uses: actions/checkout@v4
         with:
+          repository: ESPressio-Development-Platform/ESPressio-System
+          ref: feature/1-system-memory-policy
+          path: project/dependencies/ESPressio-System
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-ESP32
+          ref: feature/1-system-memory-provider
+          path: project/dependencies/ESPressio-ESP32
+      - uses: actions/checkout@v4
+        with:
           repository: ESPressio-Development-Platform/ESPressio-WiFi
           ref: feature/20-wifi-off-mode
           path: project/dependencies/ESPressio-WiFi
@@ -51,7 +61,7 @@ jobs:
           mkdir -p project/compile/src
           cat > project/compile/platformio.ini <<'EOF'
           [env:esp32]
-          platform = espressif32
+          platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
           board = esp32dev
           framework = arduino
           build_flags =
@@ -61,6 +71,8 @@ jobs:
           build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           lib_deps =
+              ../dependencies/ESPressio-System
+              ../dependencies/ESPressio-ESP32
               ../dependencies/ESPressio-Observable
               ../dependencies/ESPressio-Units
               ../dependencies/ESPressio-Timing
@@ -72,6 +84,7 @@ jobs:
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
           #include <type_traits>
+          #include <ESPressio_ESP32.hpp>
           #include <ESPressio_ThreadManager.hpp>
           #include <ESPressio_ESP32WiFi.hpp>
           #include <ESPressio_WiFiWorker.hpp>
@@ -101,6 +114,8 @@ jobs:
           ESPressio::ESPNow::ESPNowWiFiCoordinator coordinator(transport, wifiManager);
 
           void setup() {
+              ESPressio::ESP32Platform::InstallSystemProviders();
+
               ESPressio::WiFi::WiFiConfiguration wifiConfig;
               wifiConfig.Mode = ESPressio::WiFi::WiFiMode::APUntilClient;
               wifiConfig.Client.Enabled = true;
