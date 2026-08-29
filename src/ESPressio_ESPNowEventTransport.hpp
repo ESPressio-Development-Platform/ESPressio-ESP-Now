@@ -46,7 +46,7 @@
 namespace ESPressio::ESPNow {
 
 /// <summary>Implements the ESPressio Event byte-transport contract over fragmented ESP-NOW protocol frames.</summary>
-/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Event deserialization. Single-fragment Events are delivered directly from the queued frame without reassembly allocation; multi-fragment storage prefers external memory. Outbound Event packets are broadcast to the configured destination set.</remarks>
+/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Event deserialization. Single-fragment Events are delivered directly from the queued frame without reassembly allocation; multi-fragment payload storage prefers external memory and receipt state is carried inline as a packed bitmap. Outbound Event packets are broadcast to the configured destination set.</remarks>
 class ESPNowEventTransport final :
     public Event::IEventTransport {
 
@@ -72,6 +72,11 @@ private:
         MaximumFrameSize - ESPNowWireHeaderSize;
     static constexpr std::size_t MaximumFragmentPayload =
         MaximumProtocolPayload - sizeof(FragmentHeader);
+    static constexpr std::size_t MaximumFragments =
+        (ESPRESSIO_ESPNOW_EVENT_MAX_PACKET_SIZE + MaximumFragmentPayload - 1) /
+        MaximumFragmentPayload;
+    static constexpr std::size_t ReceiptBitmapBytes =
+        (MaximumFragments + 7u) / 8u;
     static constexpr auto ExternalPreferred =
         System::Memory::MemoryPolicy::ExternalPreferred;
 
@@ -83,6 +88,10 @@ private:
         MaximumFragmentPayload > 0,
         "ESP-NOW Event fragment header exceeds ESP-NOW protocol payload."
     );
+    static_assert(
+        MaximumFragments <= UINT16_MAX,
+        "Configured ESP-NOW Event packet size requires more fragments than the wire format can represent."
+    );
 
     struct Reassembly {
         MacAddress Source;
@@ -92,7 +101,7 @@ private:
         uint16_t ReceivedCount = 0;
         uint64_t LastReceiveMonotonicNanoseconds = 0;
         ByteBuffer Data;
-        ExternalVector<uint8_t> Received;
+        std::array<uint8_t, ReceiptBitmapBytes> ReceivedBits{};
     };
 
     using ReassemblyStorage = ExternalVector<Reassembly>;
@@ -106,6 +115,21 @@ private:
     mutable std::mutex _mutex;
     bool _initialized = false;
 
+    static bool IsFragmentReceived(const Reassembly& state, std::size_t index) noexcept {
+        const std::size_t byteIndex = index >> 3u;
+        const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
+        return byteIndex < state.ReceivedBits.size() &&
+            (state.ReceivedBits[byteIndex] & mask) != 0u;
+    }
+
+    static void MarkFragmentReceived(Reassembly& state, std::size_t index) noexcept {
+        const std::size_t byteIndex = index >> 3u;
+        const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
+        if (byteIndex < state.ReceivedBits.size()) {
+            state.ReceivedBits[byteIndex] = static_cast<uint8_t>(state.ReceivedBits[byteIndex] | mask);
+        }
+    }
+
     void HandleFrame(const ESPNowReceivedFrame& frame) {
         if (frame.PayloadLength < sizeof(FragmentHeader)) {
             return;
@@ -118,6 +142,7 @@ private:
             header.Magic != FragmentHeader::MagicValue ||
             header.Version != FragmentHeader::VersionValue ||
             header.FragmentCount == 0 ||
+            header.FragmentCount > MaximumFragments ||
             header.FragmentIndex >= header.FragmentCount ||
             header.FragmentLength > MaximumFragmentPayload ||
             sizeof(FragmentHeader) + header.FragmentLength > frame.PayloadLength ||
@@ -219,7 +244,6 @@ private:
                 reassembly.LastReceiveMonotonicNanoseconds =
                     frame.ReceiveMonotonicNanoseconds;
                 reassembly.Data.resize(header.TotalLength);
-                reassembly.Received.assign(header.FragmentCount, 0u);
                 _reassemblies.push_back(std::move(reassembly));
                 found = std::prev(_reassemblies.end());
             }
@@ -235,13 +259,13 @@ private:
             found->LastReceiveMonotonicNanoseconds =
                 frame.ReceiveMonotonicNanoseconds;
 
-            if (found->Received[header.FragmentIndex] == 0u) {
+            if (!IsFragmentReceived(*found, header.FragmentIndex)) {
                 std::memcpy(
                     found->Data.data() + offset,
                     frame.Payload + sizeof(FragmentHeader),
                     header.FragmentLength
                 );
-                found->Received[header.FragmentIndex] = 1u;
+                MarkFragmentReceived(*found, header.FragmentIndex);
                 ++found->ReceivedCount;
             }
 
