@@ -9,6 +9,7 @@
 
 #include <ESPressio_CommandEvents.hpp>
 #include <ESPressio_CommandResponseRoute.hpp>
+#include <ESPressio_Memory.hpp>
 
 #include "ESPressio_ESPNowAsyncProtocolHandler.hpp"
 #include "ESPressio_ESPNowCommandEndpoint.hpp"
@@ -28,7 +29,7 @@ struct ESPNowCommandTransportConfig {
 };
 
 /// <summary>Bridges ESPressio Command request/response routing onto an ESPNowTransport.</summary>
-/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Command parsing/execution, while response routing is registered with the Command response-route registry.</remarks>
+/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Command parsing/execution, while response routing is registered with the Command response-route registry. Non-platform response-route ownership prefers external memory.</remarks>
 class ESPNowCommandTransport final {
 public:
     using CompletionHandler = ESPNowCommandEndpoint::CompletionHandler;
@@ -36,6 +37,9 @@ public:
     using ResultObserver = ESPNowCommandEndpoint::ResultObserver;
 
 private:
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+
     class ResponseRoute final : public Command::ICommandResponseRoute {
         ESPNowCommandTransport* _owner = nullptr;
 
@@ -105,7 +109,17 @@ public:
             }
         }
 
-        _responseRoute = std::make_shared<ResponseRoute>(*this);
+        try {
+            _responseRoute = System::Memory::MakeShared<
+                ResponseRoute,
+                ExternalPreferred
+            >(*this);
+        } catch (...) {
+            std::lock_guard<std::recursive_mutex> lock(_endpointMutex);
+            _endpoint.Shutdown();
+            _transport = nullptr;
+            return false;
+        }
         _responseRouteId =
             Command::CommandResponseRouteRegistry::GetInstance().Register(
                 _responseRoute
