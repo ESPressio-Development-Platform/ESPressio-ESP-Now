@@ -70,13 +70,12 @@ private:
         std::shared_ptr<MaintenanceHandler> Handler;
     };
 
+    /// <summary>Queue-ready receive record containing the already decoded transport envelope.</summary>
+    /// <remarks>The native callback copies only the application payload once into <c>Received</c>; the worker consumes that record directly instead of materializing a second payload-bearing frame.</remarks>
     struct CallbackFrame {
-        MacAddress Source;
-        uint64_t ReceiveMonotonicNanoseconds = 0;
-        uint16_t Length = 0;
+        ESPNowReceivedFrame Received;
         wifi_interface_t LocalInterface = WIFI_IF_STA;
         bool HasLocalInterface = false;
-        uint8_t Data[MaximumFrameSize] = {0};
     };
 
     struct PeerInterfaceHint {
@@ -435,29 +434,22 @@ private:
     }
 
     void ProcessCallbackFrame(const CallbackFrame& frame) {
-        if (frame.Length < sizeof(WireHeader)) return;
-        WireHeader header;
-        std::memcpy(&header, frame.Data, sizeof(header));
-        if (header.Magic != FrameMagic || header.Version != FrameVersion) return;
-        if (header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) ||
-            sizeof(WireHeader) + header.PayloadLength > frame.Length) return;
-
-        ESPNowReceivedFrame received;
-        received.Source = frame.Source;
-        received.ReceiveMonotonicNanoseconds = frame.ReceiveMonotonicNanoseconds;
-        received.Protocol = header.Protocol;
-        received.PayloadLength = header.PayloadLength;
-        if (header.PayloadLength > 0) {
-            std::memcpy(received.Payload, frame.Data + sizeof(WireHeader), header.PayloadLength);
+        const ESPNowReceivedFrame& received = frame.Received;
+        if (frame.HasLocalInterface) {
+            RememberPeerInterface(received.Source, frame.LocalInterface);
         }
-        if (frame.HasLocalInterface) RememberPeerInterface(received.Source, frame.LocalInterface);
-        _observable->FrameReceived(received.Source, received.Protocol, received.PayloadLength, received.ReceiveMonotonicNanoseconds);
+        _observable->FrameReceived(
+            received.Source,
+            received.Protocol,
+            received.PayloadLength,
+            received.ReceiveMonotonicNanoseconds
+        );
 
         std::shared_ptr<ProtocolHandler> handler;
         {
             std::lock_guard<std::mutex> lock(_handlerMutex);
             for (const auto& record : _handlers) {
-                if (record.Handler && record.Protocol == header.Protocol) {
+                if (record.Handler && record.Protocol == received.Protocol) {
                     handler = record.Handler;
                     break;
                 }
@@ -496,13 +488,36 @@ private:
     ) {
         ESPNowTransport* self = CallbackInstance();
         if (self == nullptr || !self->_initialized.load(std::memory_order_acquire) ||
-            self->_receiveQueue == nullptr || source == nullptr || data == nullptr || length <= 0) return;
+            self->_receiveQueue == nullptr || source == nullptr || data == nullptr ||
+            length < static_cast<int>(sizeof(WireHeader))) {
+            return;
+        }
+
+        const std::size_t boundedLength = std::min<std::size_t>(
+            static_cast<std::size_t>(length),
+            MaximumFrameSize
+        );
+        WireHeader header;
+        std::memcpy(&header, data, sizeof(header));
+        if (header.Magic != FrameMagic || header.Version != FrameVersion ||
+            header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) ||
+            sizeof(WireHeader) + header.PayloadLength > boundedLength) {
+            return;
+        }
+
         CallbackFrame frame;
-        frame.Source = MacAddress(source);
-        frame.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
-        frame.Length = static_cast<uint16_t>(length > static_cast<int>(MaximumFrameSize) ? MaximumFrameSize : length);
+        frame.Received.Source = MacAddress(source);
+        frame.Received.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
+        frame.Received.Protocol = header.Protocol;
+        frame.Received.PayloadLength = header.PayloadLength;
+        if (header.PayloadLength != 0) {
+            std::memcpy(
+                frame.Received.Payload,
+                data + sizeof(WireHeader),
+                header.PayloadLength
+            );
+        }
         frame.HasLocalInterface = ResolveLocalInterface(destination, frame.LocalInterface);
-        std::memcpy(frame.Data, data, frame.Length);
         (void)self->_receiveQueue->Send(&frame, 0);
     }
 
