@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include <ESPressio_ESP32.hpp>
 #include <ESPressio_ESPNow.hpp>
 #include <ESPressio_ESPNowSecureTransport.hpp>
 #include <ESPressio_Security.hpp>
@@ -13,13 +14,17 @@ static constexpr uint8_t DemoProtocol = 70;
 Security::AES256GCMCipher cipher;
 Security::AeadCipherRegistry ciphers;
 Security::StaticKeyProvider keys;
-Security::ESP32RandomSource randomSource;
+Security::RandomSource randomSource;
 Security::TransportSecurity* security = nullptr;
 ESPNow::ESPNowSecureTransport secureTransport;
 
 void setup() {
     Serial.begin(115200);
     delay(500);
+
+    // Platform-specific services are installed through ESPressio-ESP32;
+    // Security consumes only the platform-neutral System entropy abstraction.
+    ESP32Platform::InstallSystemProviders();
 
     auto& raw = ESPNow::ESPNowTransport::GetInstance();
     if (!raw.Initialize()) {
