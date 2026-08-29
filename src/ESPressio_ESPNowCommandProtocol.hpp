@@ -263,6 +263,9 @@ private:
         const Command::CommandValue& value
     ) {
         if (value.IsNull()) return false;
+        if (const auto* text = value.TryGetString()) {
+            return AppendString(out, *text);
+        }
         return AppendString(out, value.ToString());
     }
 
