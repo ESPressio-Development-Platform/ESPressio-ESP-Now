@@ -85,6 +85,7 @@ public:
     /// <param name="handler">Callback that will process received frames on the worker task.</param>
     /// <param name="configuration">Task and queue resources for the worker.</param>
     /// <returns>True when the configuration is valid and the worker starts successfully.</returns>
+    /// <remarks>The caller's handler is moved directly into the TaskExecutor. No intermediate capturing lambda or second type-erased callable is materialized.</remarks>
     bool Initialize(
         Handler handler,
         Configuration configuration
@@ -109,11 +110,7 @@ public:
             taskConfiguration
         );
 
-        const auto initialized = executor->Initialize(
-            [handler = std::move(handler)](const ESPNowReceivedFrame& frame) {
-                handler(frame);
-            }
-        );
+        const auto initialized = executor->Initialize(std::move(handler));
 
         if (initialized != Task::TaskExecutionStatus::Success) {
             return false;
