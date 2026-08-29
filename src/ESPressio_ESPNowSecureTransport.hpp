@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <functional>
 #include <utility>
-#include <vector>
 
+#include <ESPressio_Memory.hpp>
 #include <ESPressio_Security.hpp>
 
 #include "ESPressio_ESPNowSecurityProtocol.hpp"
@@ -44,7 +44,10 @@ public:
     void Shutdown() {
         if (!_initialized) return;
         _transport.UnregisterProtocolHandler(static_cast<uint8_t>(ESPNowProtocol::SecureTransport));
-        _security = nullptr; _initialized = false; _nextMessageID = 1; _replacementCursor = 0;
+        _security = nullptr;
+        _initialized = false;
+        _nextMessageID = 1;
+        _replacementCursor = 0;
         for (auto& slot : _reassembly) slot.State.ReleaseStorage();
     }
 
@@ -63,13 +66,29 @@ public:
     /// <param name="payloadLength">Application payload length.</param>
     /// <param name="securityResult">Optional destination for the Security protection result.</param>
     /// <returns>True only when protection succeeds and every fragment is accepted by ESPNowTransport.</returns>
-    bool Send(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength, Security::SecurityResult* securityResult = nullptr) {
-        if (!_initialized || _security == nullptr || destination.IsZero() || (payload == nullptr && payloadLength != 0)) return false;
+    bool Send(
+        const MacAddress& destination,
+        uint8_t protocol,
+        const void* payload,
+        std::size_t payloadLength,
+        Security::SecurityResult* securityResult = nullptr
+    ) {
+        if (!_initialized || _security == nullptr || destination.IsZero() ||
+            (payload == nullptr && payloadLength != 0)) return false;
 
-        std::vector<uint8_t> secured;
-        auto result = _security->Protect(protocol, static_cast<const uint8_t*>(payload), payloadLength, secured);
+        // The protected envelope may be many ESP-NOW frames long and never
+        // requires DMA-capable storage. Keep it in PSRAM-capable System memory
+        // from encryption through fragmentation.
+        Security::SecurityBuffer secured;
+        auto result = _security->Protect(
+            protocol,
+            static_cast<const uint8_t*>(payload),
+            payloadLength,
+            secured
+        );
         if (securityResult) *securityResult = result;
-        if (!result.Success || secured.empty() || secured.size() > ESPNowSecurityProtocol::MaximumEnvelopeBytes) return false;
+        if (!result.Success || secured.empty() ||
+            secured.size() > ESPNowSecurityProtocol::MaximumEnvelopeBytes) return false;
 
         uint32_t messageID = _nextMessageID++;
         if (messageID == 0) messageID = _nextMessageID++;
@@ -77,15 +96,16 @@ public:
         const std::size_t fragmentCount =
             (secured.size() + ESPNowSecurityProtocol::MaximumFragmentPayload - 1) /
             ESPNowSecurityProtocol::MaximumFragmentPayload;
-        if (fragmentCount == 0 || fragmentCount > ESPNowSecurityProtocol::MaximumFragments) return false;
+        if (fragmentCount == 0 ||
+            fragmentCount > ESPNowSecurityProtocol::MaximumFragments) return false;
 
-        // Reuse a single encoded fragment. The previous implementation built a
-        // vector<vector<uint8_t>> containing the entire secured envelope a
-        // second time before sending the first frame.
-        std::vector<uint8_t> encoded;
+        // Reuse one PSRAM-backed encoded fragment rather than materializing all
+        // fragments or allocating one ordinary vector per send iteration.
+        ESPNowSecurityProtocol::ByteBuffer encoded;
         encoded.reserve(MaximumFrameSize);
         for (std::size_t index = 0; index < fragmentCount; ++index) {
-            const std::size_t offset = index * ESPNowSecurityProtocol::MaximumFragmentPayload;
+            const std::size_t offset =
+                index * ESPNowSecurityProtocol::MaximumFragmentPayload;
             const std::size_t bytes = std::min(
                 ESPNowSecurityProtocol::MaximumFragmentPayload,
                 secured.size() - offset
@@ -108,7 +128,9 @@ public:
     }
 
 private:
-    struct ReassemblySlot { ESPNowSecurityProtocol::ReassemblyState State; };
+    struct ReassemblySlot {
+        ESPNowSecurityProtocol::ReassemblyState State;
+    };
 
     ESPNowTransport& _transport;
     Security::TransportSecurity* _security = nullptr;
@@ -137,19 +159,31 @@ private:
         Security::UnprotectedPayload opened;
         Security::SecurityResult result;
 
-        // Keep fragment/reassembly/encrypted-envelope temporaries in a narrow
-        // scope so their heap storage is released before application Command or
-        // Event callbacks execute on the ESP-NOW worker.
+        // DecodeFragment borrows directly from ESPNowReceivedFrame. Only the
+        // one required copy into retained reassembly storage is performed for
+        // fragmented envelopes, and that storage is ExternalPreferred.
         {
             ESPNowSecurityProtocol::Fragment fragment;
-            if (!ESPNowSecurityProtocol::DecodeFragment(frame.Payload, frame.PayloadLength, fragment)) return;
+            if (!ESPNowSecurityProtocol::DecodeFragment(
+                    frame.Payload,
+                    frame.PayloadLength,
+                    fragment)) return;
 
-            std::vector<uint8_t> envelope;
+            ESPNowSecurityProtocol::ByteBuffer envelope;
             auto& slot = SlotFor(frame.Source, fragment.MessageID);
             const uint8_t protocol = fragment.ApplicationProtocol;
-            if (!ESPNowSecurityProtocol::AcceptFragment(slot.State, frame.Source, fragment, envelope) || envelope.empty()) return;
+            if (!ESPNowSecurityProtocol::AcceptFragment(
+                    slot.State,
+                    frame.Source,
+                    fragment,
+                    envelope) || envelope.empty()) return;
 
-            result = _security->Unprotect(protocol, envelope.data(), envelope.size(), opened);
+            result = _security->Unprotect(
+                protocol,
+                envelope.data(),
+                envelope.size(),
+                opened
+            );
         }
 
         if (!result.Success) {
