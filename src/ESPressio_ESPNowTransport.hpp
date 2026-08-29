@@ -511,7 +511,10 @@ public:
             _observable->InitializationFailed();
             return false;
         }
-        _receiveQueue = System::Queue::Create<CallbackFrame>(_config.ReceiveQueueLength);
+        _receiveQueue = System::Queue::Create<CallbackFrame>(
+            _config.ReceiveQueueLength,
+            System::Memory::MemoryPolicy::ExternalPreferred
+        );
         if (_receiveQueue == nullptr) { _observable->InitializationFailed(); return false; }
         _worker = std::make_unique<TransportWorker>(*this);
         _worker->Configure(_config);
