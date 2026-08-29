@@ -199,10 +199,10 @@ public:
             state.LastUpdatedMilliseconds = nowMilliseconds;
 
             // Allocate one final externally-preferred payload buffer up-front.
-            // Each fragment is copied directly to its final offset, avoiding
-            // per-fragment allocations and the previous second full-message copy.
+            // Each fragment is copied directly to its final offset. Receipt
+            // state is packed to one bit per fragment rather than one byte.
             state.Buffer.resize(header.TotalLength);
-            state.Received.assign(header.FragmentCount, 0u);
+            state.ReceivedBits.assign(ReceiptBitmapBytes(header.FragmentCount), 0u);
             _reassemblies.push_back(std::move(state));
             reassembly = &_reassemblies.back();
         }
@@ -210,15 +210,16 @@ public:
         reassembly->LastUpdatedMilliseconds = nowMilliseconds;
         const std::size_t index = header.FragmentIndex;
         uint8_t* destination = reassembly->Buffer.data() + fragmentOffset;
-        if (reassembly->Received[index] == 0u) {
+        if (!IsFragmentReceived(*reassembly, index)) {
             std::copy(fragmentData, fragmentData + header.FragmentLength, destination);
-            reassembly->Received[index] = 1u;
+            MarkFragmentReceived(*reassembly, index);
+            ++reassembly->ReceivedCount;
             reassembly->ReceivedBytes += header.FragmentLength;
         } else {
             if (!std::equal(fragmentData, fragmentData + header.FragmentLength, destination)) return false;
         }
         if (reassembly->ReceivedBytes > reassembly->TotalLength) return false;
-        if (!std::all_of(reassembly->Received.begin(), reassembly->Received.end(), [](uint8_t value){ return value != 0u; })) return true;
+        if (reassembly->ReceivedCount != reassembly->FragmentCount) return true;
         if (reassembly->ReceivedBytes != reassembly->TotalLength) return false;
 
         const uint8_t type = reassembly->Type;
@@ -318,11 +319,12 @@ private:
         uint8_t Type = 0;
         uint32_t TotalLength = 0;
         uint16_t FragmentCount = 0;
+        uint16_t ReceivedCount = 0;
         std::size_t ReceivedBytes = 0;
         uint64_t StartedMilliseconds = 0;
         uint64_t LastUpdatedMilliseconds = 0;
         ByteBuffer Buffer;
-        ExternalVector<uint8_t> Received;
+        ByteBuffer ReceivedBits;
     };
     struct DuplicateResult {
         ESPNowCommandPeerAddress Peer;
@@ -345,6 +347,25 @@ private:
     bool _initialized = false;
 
     static uint64_t Elapsed(uint64_t now, uint64_t then) { return now >= then ? now - then : 0; }
+
+    static constexpr std::size_t ReceiptBitmapBytes(std::size_t fragmentCount) noexcept {
+        return (fragmentCount + 7u) / 8u;
+    }
+
+    static bool IsFragmentReceived(const Reassembly& state, std::size_t index) noexcept {
+        const std::size_t byteIndex = index >> 3u;
+        const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
+        return byteIndex < state.ReceivedBits.size() &&
+            (state.ReceivedBits[byteIndex] & mask) != 0u;
+    }
+
+    static void MarkFragmentReceived(Reassembly& state, std::size_t index) noexcept {
+        const std::size_t byteIndex = index >> 3u;
+        const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
+        if (byteIndex < state.ReceivedBits.size()) {
+            state.ReceivedBits[byteIndex] = static_cast<uint8_t>(state.ReceivedBits[byteIndex] | mask);
+        }
+    }
 
     bool SendPayload(const ESPNowCommandPeerAddress& peer, ESPNowCommandMessageType type, uint64_t requestID,
                      const ByteBuffer& payload) {
