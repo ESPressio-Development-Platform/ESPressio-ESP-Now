@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: feature/1-system-memory-policy, path: deps/ESPressio-System}
       - uses: actions/checkout@v4
+        with: {repository: ESPressio-Development-Platform/ESPressio-ESP32, ref: feature/1-system-memory-provider, path: deps/ESPressio-ESP32}
+      - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: feature/1-task-execution, path: deps/ESPressio-Task}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: feature/29-platform-clock-abstractions, path: deps/ESPressio-Timing}
@@ -52,12 +54,12 @@ jobs:
           PROJECT="$RUNNER_TEMP/espressio-espnow-security-ci"
           mkdir -p "$PROJECT/src" "$PROJECT/lib"
           rsync -a --exclude='.git' --exclude='deps' --exclude='build' ./ "$PROJECT/lib/ESPressio-ESPNow/"
-          for DEP in ESPressio-Security ESPressio-System ESPressio-Task ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Threads; do
+          for DEP in ESPressio-Security ESPressio-System ESPressio-ESP32 ESPressio-Task ESPressio-Timing ESPressio-Units ESPressio-Observable ESPressio-Threads; do
             cp -R "deps/$DEP" "$PROJECT/lib/$DEP"
           done
           cat > "$PROJECT/platformio.ini" <<'EOF'
           [env:esp32dev]
-          platform = espressif32
+          platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
           board = esp32dev
           framework = arduino
           build_flags = -std=gnu++17 -fno-rtti
@@ -65,5 +67,5 @@ jobs:
           lib_ldf_mode = deep+
           EOF
           cp examples/SecurePeer/SecurePeer.ino "$PROJECT/src/main.cpp"
-      - name: Compile SecurePeer against coordinated Security/System working branches without RTTI
+      - name: Compile SecurePeer against coordinated current working branches without RTTI
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-security-ci"
