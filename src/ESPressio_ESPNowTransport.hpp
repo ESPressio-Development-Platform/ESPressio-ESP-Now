@@ -90,11 +90,14 @@ private:
         ESPNowPeerConfig Config;
     };
 
-    using HandlerStorage = System::Memory::Vector<HandlerRecord, System::Memory::MemoryPolicy::ExternalPreferred>;
-    using MaintenanceStorage = System::Memory::Vector<MaintenanceRecord, System::Memory::MemoryPolicy::ExternalPreferred>;
-    using PeerHintStorage = System::Memory::Vector<PeerInterfaceHint, System::Memory::MemoryPolicy::ExternalPreferred>;
-    using ManagedPeerStorage = System::Memory::Vector<ManagedPeerRecord, System::Memory::MemoryPolicy::ExternalPreferred>;
-    using PeerConfigSnapshot = System::Memory::Vector<ESPNowPeerConfig, System::Memory::MemoryPolicy::ExternalPreferred>;
+    static constexpr auto ExternalPreferred =
+        System::Memory::MemoryPolicy::ExternalPreferred;
+
+    using HandlerStorage = System::Memory::Vector<HandlerRecord, ExternalPreferred>;
+    using MaintenanceStorage = System::Memory::Vector<MaintenanceRecord, ExternalPreferred>;
+    using PeerHintStorage = System::Memory::Vector<PeerInterfaceHint, ExternalPreferred>;
+    using ManagedPeerStorage = System::Memory::Vector<ManagedPeerRecord, ExternalPreferred>;
+    using PeerConfigSnapshot = System::Memory::Vector<ESPNowPeerConfig, ExternalPreferred>;
 
     class TransportObservable final : public Observable::ThreadSafeObservable {
         template<typename Callback>
@@ -146,9 +149,12 @@ private:
         std::atomic<uint32_t> _minimumFreeStackBytes{0};
     };
 
+    using TransportWorkerPtr =
+        System::Memory::UniquePtr<TransportWorker, ExternalPreferred>;
+
     ESPNowTransportConfig _config;
     std::unique_ptr<System::Queue::IMessageQueue> _receiveQueue;
-    std::unique_ptr<TransportWorker> _worker;
+    TransportWorkerPtr _worker;
     HandlerStorage _handlers;
     mutable std::mutex _handlerMutex;
     MaintenanceStorage _maintenanceHandlers;
@@ -166,15 +172,56 @@ private:
     std::atomic<ESPNowSendFailure> _lastSendFailure{ESPNowSendFailure::None};
     std::atomic<int32_t> _lastSendNativeError{0};
 
-    ESPNowTransport()
-        : _handlers(ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS),
-          _maintenanceHandlers(ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS),
-          _peerInterfaceHints(ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS),
-          _managedPeers(ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS),
-          _observable(System::Memory::MakeShared<
-              TransportObservable,
-              System::Memory::MemoryPolicy::ExternalPreferred
-          >()) {}
+    /// <summary>Constructs the singleton without performing dynamic allocation.</summary>
+    /// <remarks>This permits references to <c>GetInstance()</c> from global objects without binding ExternalPreferred storage to the pre-platform default provider.</remarks>
+    ESPNowTransport() = default;
+
+    bool EnsureObservable() {
+        if (_observable) return true;
+        try {
+            _observable = System::Memory::MakeShared<
+                TransportObservable,
+                ExternalPreferred
+            >();
+            return static_cast<bool>(_observable);
+        } catch (...) {
+            return false;
+        }
+    }
+
+    /// <summary>Materializes bounded runtime tables after the platform memory provider is available.</summary>
+    bool EnsureRuntimeStorage() {
+        if (!EnsureObservable()) return false;
+        try {
+            if (_handlers.size() != ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS) {
+                _handlers.assign(
+                    ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS,
+                    HandlerRecord{}
+                );
+            }
+            if (_maintenanceHandlers.size() != ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS) {
+                _maintenanceHandlers.assign(
+                    ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS,
+                    MaintenanceRecord{}
+                );
+            }
+            if (_peerInterfaceHints.size() != ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS) {
+                _peerInterfaceHints.assign(
+                    ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS,
+                    PeerInterfaceHint{}
+                );
+            }
+            if (_managedPeers.size() != ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS) {
+                _managedPeers.assign(
+                    ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS,
+                    ManagedPeerRecord{}
+                );
+            }
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
 
     static ESPNowTransport*& CallbackInstance() {
         static ESPNowTransport* instance = nullptr;
@@ -495,12 +542,16 @@ public:
     }
 
     Observable::ObserverHandlePtr RegisterObserver(IESPNowTransportObserver* observer) {
+        if (!observer || !EnsureObservable()) return {};
         return _observable->RegisterObserver(observer);
     }
-    void UnregisterObserver(IESPNowTransportObserver* observer) { _observable->UnregisterObserver(observer); }
+    void UnregisterObserver(IESPNowTransportObserver* observer) {
+        if (_observable) _observable->UnregisterObserver(observer);
+    }
 
     bool Initialize(const ESPNowTransportConfig& config = ESPNowTransportConfig()) {
         if (_initialized.load(std::memory_order_acquire)) return true;
+        if (!EnsureRuntimeStorage()) return false;
         _config = config;
         if (_config.WorkerIterationIntervalMilliseconds == 0 || _config.ReceiveQueueLength == 0) {
             _observable->InitializationFailed();
@@ -513,10 +564,16 @@ public:
         }
         _receiveQueue = System::Queue::Create<CallbackFrame>(
             _config.ReceiveQueueLength,
-            System::Memory::MemoryPolicy::ExternalPreferred
+            ExternalPreferred
         );
         if (_receiveQueue == nullptr) { _observable->InitializationFailed(); return false; }
-        _worker = std::make_unique<TransportWorker>(*this);
+        try {
+            _worker = System::Memory::MakeUnique<TransportWorker, ExternalPreferred>(*this);
+        } catch (...) {
+            _receiveQueue.reset();
+            _observable->InitializationFailed();
+            return false;
+        }
         _worker->Configure(_config);
         const auto workerInit = _worker->Initialize();
         if (workerInit != Threads::ThreadInitializationStatus::Success &&
@@ -576,7 +633,7 @@ public:
         { std::lock_guard<std::mutex> lock(_peerInterfaceMutex); for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{}; }
         { std::lock_guard<std::mutex> lock(_managedPeerMutex); for (auto& record : _managedPeers) record = ManagedPeerRecord{}; }
         { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = ESPNowRadioBinding{}; _radioBinding.Available = false; }
-        _observable->Shutdown();
+        if (_observable) _observable->Shutdown();
     }
 
     bool GetIsInitialized() const { return _initialized.load(std::memory_order_acquire); }
@@ -666,10 +723,10 @@ public:
     }
 
     bool RegisterProtocolHandler(uint8_t protocol, ProtocolHandler handler) {
-        if (!handler) return false;
+        if (!handler || !EnsureRuntimeStorage()) return false;
         auto owned = System::Memory::MakeShared<
             ProtocolHandler,
-            System::Memory::MemoryPolicy::ExternalPreferred
+            ExternalPreferred
         >(std::move(handler));
         std::lock_guard<std::mutex> lock(_handlerMutex);
         for (auto& record : _handlers) {
@@ -696,10 +753,10 @@ public:
     }
 
     bool RegisterMaintenanceHandler(const void* owner, MaintenanceHandler handler) {
-        if (owner == nullptr || !handler) return false;
+        if (owner == nullptr || !handler || !EnsureRuntimeStorage()) return false;
         auto owned = System::Memory::MakeShared<
             MaintenanceHandler,
-            System::Memory::MemoryPolicy::ExternalPreferred
+            ExternalPreferred
         >(std::move(handler));
         std::lock_guard<std::mutex> lock(_maintenanceMutex);
         for (auto& record : _maintenanceHandlers) {
@@ -787,8 +844,8 @@ public:
         }
         _lastSendFailure.store(result.Failure);
         _lastSendNativeError.store(result.NativeError);
-        if (result.Success) _observable->SendAccepted(destination, protocol, payloadLength);
-        else _observable->SendFailed(destination, protocol, payloadLength, result.Failure, result.NativeError);
+        if (result.Success && _observable) _observable->SendAccepted(destination, protocol, payloadLength);
+        else if (_observable) _observable->SendFailed(destination, protocol, payloadLength, result.Failure, result.NativeError);
         return result;
     }
 
