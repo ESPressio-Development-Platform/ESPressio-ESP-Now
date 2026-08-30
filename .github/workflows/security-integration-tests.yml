@@ -66,6 +66,9 @@ jobs:
           build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           EOF
-          cp examples/SecurePeer/SecurePeer.ino "$PROJECT/src/main.cpp"
+          {
+            echo '#include <Network.h>'
+            cat examples/SecurePeer/SecurePeer.ino
+          } > "$PROJECT/src/main.cpp"
       - name: Compile SecurePeer against coordinated current working branches without RTTI
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-security-ci"
