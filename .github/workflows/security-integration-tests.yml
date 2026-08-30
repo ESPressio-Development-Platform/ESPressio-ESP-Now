@@ -62,7 +62,10 @@ jobs:
           platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
           board = esp32dev
           framework = arduino
-          build_flags = -std=gnu++17 -fno-rtti
+          build_flags =
+              -std=gnu++17
+              -fno-rtti
+              -I${sysenv.HOME}/.platformio/packages/framework-arduinoespressif32/libraries/Network/src
           build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           EOF
