@@ -263,10 +263,12 @@ private:
         const Command::CommandValue& value
     ) {
         if (value.IsNull()) return false;
-        if (const auto* text = value.TryGetString()) {
-            return AppendString(out, *text);
-        }
-        return AppendString(out, value.ToString());
+        return Command::WithCommandValueText(
+            value,
+            [&](std::string_view text) {
+                return AppendString(out, text);
+            }
+        );
     }
 
     template<typename TAllocator>
