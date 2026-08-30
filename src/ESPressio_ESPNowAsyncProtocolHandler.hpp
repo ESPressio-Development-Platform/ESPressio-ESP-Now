@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <mutex>
 #include <utility>
 
@@ -31,7 +32,7 @@ namespace ESPNow {
 /// Moves received ESP-NOW protocol frames from the transport callback path to a dedicated task executor.
 /// </summary>
 /// <remarks>
-/// The supplied handler executes asynchronously using the configured task and queue resources. Full frames are retained in a bounded externally preferred pool while the executor queue carries only frame pointers, avoiding repeated whole-frame queue copies and a full-frame worker-stack local. Frames that cannot be handed off are counted as rejected handoffs. The underlying task stack remains on the platform-safe execution path.
+/// The supplied handler executes asynchronously using the configured task and queue resources. Full frames are retained in a bounded externally preferred pool while the executor queue carries only frame pointers, avoiding repeated whole-frame queue copies and a full-frame worker-stack local. The pool includes capacity for all queued frames, one frame currently executing, and one incoming frame so <c>DropOldest</c> can evict an accepted item without losing the incoming handoff. Frames that cannot be handed off are counted as rejected handoffs. The underlying task stack remains on the platform-safe execution path.
 /// </remarks>
 class ESPNowAsyncProtocolHandler {
 public:
@@ -129,7 +130,7 @@ public:
     /// <param name="handler">Callback that will process received frames on the worker task.</param>
     /// <param name="configuration">Task and queue resources for the worker.</param>
     /// <returns>True when the configuration is valid and the worker starts successfully.</returns>
-    /// <remarks>The bounded frame pool is materialized once in externally preferred storage. The TaskExecutor then queues pointer-sized work items rather than copying complete frames through FreeRTOS queue storage.</remarks>
+    /// <remarks>The bounded frame pool is materialized once in externally preferred storage. The TaskExecutor then queues pointer-sized work items rather than copying complete frames through FreeRTOS queue storage, and its discarded-item callback returns <c>DropOldest</c> evictions to the pool.</remarks>
     bool Initialize(
         Handler handler,
         Configuration configuration
@@ -138,11 +139,15 @@ public:
         if (!handler || configuration.StackSize == 0 || configuration.QueueDepth == 0) {
             return false;
         }
+        if (configuration.QueueDepth > std::numeric_limits<size_t>::max() - 2U) {
+            return false;
+        }
 
         _configuration = configuration;
+        const size_t poolSize = configuration.QueueDepth + 2U;
         try {
-            _frames.resize(configuration.QueueDepth);
-            _slotInUse.assign(configuration.QueueDepth, 0);
+            _frames.resize(poolSize);
+            _slotInUse.assign(poolSize, 0);
         } catch (...) {
             _frames.clear();
             _slotInUse.clear();
@@ -164,7 +169,8 @@ public:
         );
 
         const auto initialized = executor->Initialize(
-            [this](WorkItem const& frame) { ProcessFrame(frame); }
+            [this](WorkItem const& frame) { ProcessFrame(frame); },
+            [this](WorkItem const& discarded) { ReleaseFrame(discarded); }
         );
 
         if (initialized != Task::TaskExecutionStatus::Success) {
