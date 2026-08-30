@@ -389,18 +389,10 @@ private:
         }
     }
 
-public:
-    ESPNowEventTransport() = default;
-    explicit ESPNowEventTransport(ESPNowTransport& transport) : _transport(&transport) {}
-
-    ESPNowEventTransport(const ESPNowEventTransport&) = delete;
-    ESPNowEventTransport& operator=(const ESPNowEventTransport&) = delete;
-    ~ESPNowEventTransport() override { Shutdown(); }
-
-    bool Initialize(
-        ESPNowTransport& transport = ESPNowTransport::GetInstance(),
-        ESPNowAsyncProtocolHandler::Configuration asyncConfiguration = {},
-        OutboundConfiguration outboundConfiguration = {}
+    bool InitializeImpl(
+        ESPNowTransport& transport,
+        ESPNowAsyncProtocolHandler::Configuration asyncConfiguration,
+        const OutboundConfiguration& outboundConfiguration
     ) {
         if (_initialized.load(std::memory_order_acquire)) return true;
         if (!transport.GetIsInitialized() || outboundConfiguration.StackSize == 0 ||
@@ -476,6 +468,29 @@ public:
         _outboundRejected.store(0, std::memory_order_release);
         _initialized.store(true, std::memory_order_release);
         return true;
+    }
+
+public:
+    ESPNowEventTransport() = default;
+    explicit ESPNowEventTransport(ESPNowTransport& transport) : _transport(&transport) {}
+
+    ESPNowEventTransport(const ESPNowEventTransport&) = delete;
+    ESPNowEventTransport& operator=(const ESPNowEventTransport&) = delete;
+    ~ESPNowEventTransport() override { Shutdown(); }
+
+    bool Initialize(
+        ESPNowTransport& transport = ESPNowTransport::GetInstance(),
+        ESPNowAsyncProtocolHandler::Configuration asyncConfiguration = {}
+    ) {
+        return InitializeImpl(transport, asyncConfiguration, OutboundConfiguration{});
+    }
+
+    bool Initialize(
+        ESPNowTransport& transport,
+        ESPNowAsyncProtocolHandler::Configuration asyncConfiguration,
+        const OutboundConfiguration& outboundConfiguration
+    ) {
+        return InitializeImpl(transport, asyncConfiguration, outboundConfiguration);
     }
 
     void Shutdown() {
