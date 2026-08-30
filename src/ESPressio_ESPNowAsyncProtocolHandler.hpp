@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <utility>
 
 #include <ESPressio_Memory.hpp>
@@ -30,7 +31,7 @@ namespace ESPNow {
 /// Moves received ESP-NOW protocol frames from the transport callback path to a dedicated task executor.
 /// </summary>
 /// <remarks>
-/// The supplied handler executes asynchronously using the configured task and queue resources. Frames that cannot be handed off are counted as rejected handoffs. Executor object storage and queue backing prefer external memory; the underlying task stack remains on the platform-safe execution path.
+/// The supplied handler executes asynchronously using the configured task and queue resources. Full frames are retained in a bounded externally preferred pool while the executor queue carries only frame pointers, avoiding repeated whole-frame queue copies and a full-frame worker-stack local. Frames that cannot be handed off are counted as rejected handoffs. The underlying task stack remains on the platform-safe execution path.
 /// </remarks>
 class ESPNowAsyncProtocolHandler {
 public:
@@ -57,13 +58,56 @@ public:
 private:
     static constexpr auto ExternalPreferred =
         System::Memory::MemoryPolicy::ExternalPreferred;
-    using Executor = Task::TaskExecutor<ESPNowReceivedFrame>;
+    using WorkItem = ESPNowReceivedFrame*;
+    using Executor = Task::TaskExecutor<WorkItem>;
     using ExecutorPtr = System::Memory::UniquePtr<Executor, ExternalPreferred>;
+    using FrameStorage = System::Memory::Vector<ESPNowReceivedFrame, ExternalPreferred>;
+    using SlotStorage = System::Memory::Vector<uint8_t, ExternalPreferred>;
 
     Configuration _configuration;
     ExecutorPtr _executor;
+    FrameStorage _frames;
+    SlotStorage _slotInUse;
+    Handler _handler;
+    mutable std::mutex _poolMutex;
     std::atomic<uint64_t> _handoffRejected{0};
-    bool _initialized = false;
+    std::atomic<bool> _initialized{false};
+
+    WorkItem AcquireFrame(const ESPNowReceivedFrame& frame) {
+        std::lock_guard<std::mutex> lock(_poolMutex);
+        for (std::size_t index = 0; index < _frames.size(); ++index) {
+            if (_slotInUse[index] != 0) continue;
+            _slotInUse[index] = 1;
+            _frames[index] = frame;
+            return &_frames[index];
+        }
+        return nullptr;
+    }
+
+    void ReleaseFrame(WorkItem frame) noexcept {
+        if (frame == nullptr) return;
+        std::lock_guard<std::mutex> lock(_poolMutex);
+        if (_frames.empty()) return;
+        ESPNowReceivedFrame* const first = _frames.data();
+        ESPNowReceivedFrame* const end = first + _frames.size();
+        if (frame < first || frame >= end) return;
+        _slotInUse[static_cast<std::size_t>(frame - first)] = 0;
+    }
+
+    void ProcessFrame(WorkItem frame) {
+        if (frame == nullptr) return;
+        class FrameRelease final {
+        public:
+            FrameRelease(ESPNowAsyncProtocolHandler& owner, WorkItem item) noexcept
+                : _owner(owner), _item(item) {}
+            ~FrameRelease() { _owner.ReleaseFrame(_item); }
+        private:
+            ESPNowAsyncProtocolHandler& _owner;
+            WorkItem _item;
+        } release(*this, frame);
+
+        if (_handler) _handler(*frame);
+    }
 
 public:
     ESPNowAsyncProtocolHandler() = default;
@@ -85,7 +129,7 @@ public:
     /// <param name="handler">Callback that will process received frames on the worker task.</param>
     /// <param name="configuration">Task and queue resources for the worker.</param>
     /// <returns>True when the configuration is valid and the worker starts successfully.</returns>
-    /// <remarks>The caller's handler is moved directly into the TaskExecutor. No intermediate capturing lambda or second type-erased callable is materialized.</remarks>
+    /// <remarks>The bounded frame pool is materialized once in externally preferred storage. The TaskExecutor then queues pointer-sized work items rather than copying complete frames through FreeRTOS queue storage.</remarks>
     bool Initialize(
         Handler handler,
         Configuration configuration
@@ -96,6 +140,15 @@ public:
         }
 
         _configuration = configuration;
+        try {
+            _frames.resize(configuration.QueueDepth);
+            _slotInUse.assign(configuration.QueueDepth, 0);
+        } catch (...) {
+            _frames.clear();
+            _slotInUse.clear();
+            return false;
+        }
+        _handler = std::move(handler);
 
         Task::TaskConfiguration taskConfiguration;
         taskConfiguration.Name = configuration.Name;
@@ -110,47 +163,66 @@ public:
             taskConfiguration
         );
 
-        const auto initialized = executor->Initialize(std::move(handler));
+        const auto initialized = executor->Initialize(
+            [this](WorkItem const& frame) { ProcessFrame(frame); }
+        );
 
         if (initialized != Task::TaskExecutionStatus::Success) {
+            _handler = {};
+            _frames.clear();
+            _slotInUse.clear();
             return false;
         }
 
         if (executor->Start() != Task::TaskExecutionStatus::Success) {
             executor->Stop();
+            _handler = {};
+            _frames.clear();
+            _slotInUse.clear();
             return false;
         }
 
         _executor = std::move(executor);
         _handoffRejected.store(0, std::memory_order_release);
-        _initialized = true;
+        _initialized.store(true, std::memory_order_release);
         return true;
     }
 
-    /// <summary>Stops the worker and releases its executor resources.</summary>
+    /// <summary>Stops the worker and releases its executor and externally preferred frame-pool resources.</summary>
     void Shutdown() {
-        _initialized = false;
+        _initialized.store(false, std::memory_order_release);
         if (_executor) {
             _executor->Stop();
             _executor.reset();
         }
+        std::lock_guard<std::mutex> lock(_poolMutex);
+        _handler = {};
+        _frames.clear();
+        _slotInUse.clear();
     }
 
     /// <summary>Reports whether the asynchronous worker is currently initialized.</summary>
     bool GetIsInitialized() const noexcept {
-        return _initialized;
+        return _initialized.load(std::memory_order_acquire);
     }
 
     /// <summary>Queues a received frame for asynchronous protocol processing.</summary>
     /// <param name="frame">Frame to hand off to the worker.</param>
-    /// <returns>True when the frame was accepted by the worker queue.</returns>
+    /// <returns>True when a pool slot and worker-queue entry were both acquired.</returns>
     bool Submit(const ESPNowReceivedFrame& frame) {
-        if (!_initialized || !_executor) {
+        if (!_initialized.load(std::memory_order_acquire) || !_executor) {
             return false;
         }
 
-        const auto result = _executor->Submit(frame);
+        WorkItem item = AcquireFrame(frame);
+        if (item == nullptr) {
+            _handoffRejected.fetch_add(1, std::memory_order_relaxed);
+            return false;
+        }
+
+        const auto result = _executor->Submit(item);
         if (result != Task::TaskExecutionStatus::Success) {
+            ReleaseFrame(item);
             _handoffRejected.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
