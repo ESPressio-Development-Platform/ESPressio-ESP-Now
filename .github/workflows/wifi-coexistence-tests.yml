@@ -68,6 +68,7 @@ jobs:
               -std=gnu++17
               -fno-rtti
               -DESPRESSIO_SERIALIZATION_PREFER_PSRAM
+              -I${sysenv.HOME}/.platformio/packages/framework-arduinoespressif32/libraries/Network/src
           build_unflags = -std=gnu++11 -frtti
           lib_ldf_mode = deep+
           lib_deps =
