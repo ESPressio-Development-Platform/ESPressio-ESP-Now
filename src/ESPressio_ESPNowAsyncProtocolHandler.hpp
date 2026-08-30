@@ -9,6 +9,7 @@
 #include <utility>
 
 #include <ESPressio_Memory.hpp>
+#include <ESPressio_Synchronization.hpp>
 #include <ESPressio_Task.hpp>
 
 #include "ESPressio_ESPNowTransport.hpp"
@@ -32,7 +33,7 @@ namespace ESPNow {
 /// Moves received ESP-NOW protocol frames from the transport callback path to a dedicated task executor.
 /// </summary>
 /// <remarks>
-/// The supplied handler executes asynchronously using the configured task and queue resources. Full frames are retained in a bounded externally preferred pool while the executor queue carries only frame pointers, avoiding repeated whole-frame queue copies and a full-frame worker-stack local. The pool includes capacity for all queued frames, one frame currently executing, and one incoming frame so <c>DropOldest</c> can evict an accepted item without losing the incoming handoff. Frames that cannot be handed off are counted as rejected handoffs. The underlying task stack remains on the platform-safe execution path.
+/// The supplied handler executes asynchronously using the configured task and queue resources. Full frames are retained in a bounded externally preferred pool while the executor queue carries only frame pointers, avoiding repeated whole-frame queue copies and a full-frame worker-stack local. The pool includes capacity for all queued frames, one frame currently executing, and one incoming frame so <c>DropOldest</c> can evict an accepted item without losing the incoming handoff. Frames that cannot be handed off are counted as rejected handoffs. The underlying task stack remains on the platform-safe execution path. Executor publication and teardown are serialized so receive callbacks cannot dereference an executor after shutdown has taken ownership of it for destruction.
 /// </remarks>
 class ESPNowAsyncProtocolHandler {
 public:
@@ -70,12 +71,13 @@ private:
     FrameStorage _frames;
     SlotStorage _slotInUse;
     Handler _handler;
-    mutable std::mutex _poolMutex;
+    mutable System::Synchronization::Mutex _lifecycleMutex;
+    mutable System::Synchronization::Mutex _poolMutex;
     std::atomic<uint64_t> _handoffRejected{0};
     std::atomic<bool> _initialized{false};
 
     WorkItem AcquireFrame(const ESPNowReceivedFrame& frame) {
-        std::lock_guard<std::mutex> lock(_poolMutex);
+        std::lock_guard<System::Synchronization::Mutex> lock(_poolMutex);
         for (std::size_t index = 0; index < _frames.size(); ++index) {
             if (_slotInUse[index] != 0) continue;
             _slotInUse[index] = 1;
@@ -87,7 +89,7 @@ private:
 
     void ReleaseFrame(WorkItem frame) noexcept {
         if (frame == nullptr) return;
-        std::lock_guard<std::mutex> lock(_poolMutex);
+        std::lock_guard<System::Synchronization::Mutex> lock(_poolMutex);
         if (_frames.empty()) return;
         ESPNowReceivedFrame* const first = _frames.data();
         ESPNowReceivedFrame* const end = first + _frames.size();
@@ -146,14 +148,17 @@ public:
         _configuration = configuration;
         const size_t poolSize = configuration.QueueDepth + 2U;
         try {
+            std::lock_guard<System::Synchronization::Mutex> poolLock(_poolMutex);
             _frames.resize(poolSize);
             _slotInUse.assign(poolSize, 0);
+            _handler = std::move(handler);
         } catch (...) {
+            std::lock_guard<System::Synchronization::Mutex> poolLock(_poolMutex);
+            _handler = {};
             _frames.clear();
             _slotInUse.clear();
             return false;
         }
-        _handler = std::move(handler);
 
         Task::TaskConfiguration taskConfiguration;
         taskConfiguration.Name = configuration.Name;
@@ -174,6 +179,7 @@ public:
         );
 
         if (initialized != Task::TaskExecutionStatus::Success) {
+            std::lock_guard<System::Synchronization::Mutex> poolLock(_poolMutex);
             _handler = {};
             _frames.clear();
             _slotInUse.clear();
@@ -182,26 +188,37 @@ public:
 
         if (executor->Start() != Task::TaskExecutionStatus::Success) {
             executor->Stop();
+            std::lock_guard<System::Synchronization::Mutex> poolLock(_poolMutex);
             _handler = {};
             _frames.clear();
             _slotInUse.clear();
             return false;
         }
 
-        _executor = std::move(executor);
-        _handoffRejected.store(0, std::memory_order_release);
-        _initialized.store(true, std::memory_order_release);
+        {
+            std::lock_guard<System::Synchronization::Mutex> lifecycle(_lifecycleMutex);
+            _executor = std::move(executor);
+            _handoffRejected.store(0, std::memory_order_release);
+            _initialized.store(true, std::memory_order_release);
+        }
         return true;
     }
 
     /// <summary>Stops the worker and releases its executor and externally preferred frame-pool resources.</summary>
     void Shutdown() {
-        _initialized.store(false, std::memory_order_release);
-        if (_executor) {
-            _executor->Stop();
-            _executor.reset();
+        ExecutorPtr executor;
+        {
+            std::lock_guard<System::Synchronization::Mutex> lifecycle(_lifecycleMutex);
+            _initialized.store(false, std::memory_order_release);
+            executor = std::move(_executor);
         }
-        std::lock_guard<std::mutex> lock(_poolMutex);
+
+        if (executor) {
+            executor->Stop();
+            executor.reset();
+        }
+
+        std::lock_guard<System::Synchronization::Mutex> poolLock(_poolMutex);
         _handler = {};
         _frames.clear();
         _slotInUse.clear();
@@ -216,6 +233,7 @@ public:
     /// <param name="frame">Frame to hand off to the worker.</param>
     /// <returns>True when a pool slot and worker-queue entry were both acquired.</returns>
     bool Submit(const ESPNowReceivedFrame& frame) {
+        std::lock_guard<System::Synchronization::Mutex> lifecycle(_lifecycleMutex);
         if (!_initialized.load(std::memory_order_acquire) || !_executor) {
             return false;
         }
@@ -237,6 +255,7 @@ public:
 
     /// <summary>Returns task-executor queue and execution statistics for the protocol worker.</summary>
     Task::TaskExecutionStatistics GetStatistics() const {
+        std::lock_guard<System::Synchronization::Mutex> lifecycle(_lifecycleMutex);
         return _executor
             ? _executor->GetStatistics()
             : Task::TaskExecutionStatistics{};
