@@ -19,6 +19,7 @@
 #include <cstring>
 #include <iterator>
 #include <mutex>
+#include <utility>
 
 #include <ESPressio_EventTransport.hpp>
 #include <ESPressio_Memory.hpp>
@@ -45,11 +46,14 @@
 
 namespace ESPressio::ESPNow {
 
-/// <summary>Implements the ESPressio Event byte-transport contract over fragmented ESP-NOW protocol frames.</summary>
-/// <remarks>Inbound radio callbacks are handed to a bounded asynchronous worker before Event deserialization. Single-fragment Events are delivered directly from the queued frame without reassembly allocation; multi-fragment payload storage prefers external memory and receipt state is carried inline as a packed bitmap. Outbound Event packets are broadcast to the configured destination set.</remarks>
-class ESPNowEventTransport final :
-    public Event::IEventTransport {
-
+/// <summary>Implements the ESPressio Event owned-byte transport contract over fragmented ESP-NOW protocol frames.</summary>
+/// <remarks>
+/// Inbound radio callbacks are handed to a bounded asynchronous worker before Event transport delivery. Complete inbound
+/// packets are transferred to Event as ownership-bearing ExternalPreferred buffers. Outbound packets retain immutable
+/// shared ownership while fragmentation runs, so no serialized Event bytes are copied merely to cross the Event/ESP-NOW
+/// ownership boundary.
+/// </remarks>
+class ESPNowEventTransport final : public Event::IEventTransport {
 private:
 #pragma pack(push, 1)
     struct FragmentHeader {
@@ -82,7 +86,7 @@ private:
 
     template<typename T>
     using ExternalVector = System::Memory::Vector<T, ExternalPreferred>;
-    using ByteBuffer = System::Memory::ByteVector<ExternalPreferred>;
+    using ByteBuffer = Event::EventTransportBuffer;
 
     static_assert(
         MaximumFragmentPayload > 0,
@@ -115,25 +119,30 @@ private:
     mutable std::mutex _mutex;
     bool _initialized = false;
 
-    static bool IsFragmentReceived(const Reassembly& state, std::size_t index) noexcept {
+    static bool IsFragmentReceived(
+        const Reassembly& state,
+        std::size_t index
+    ) noexcept {
         const std::size_t byteIndex = index >> 3u;
         const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
         return byteIndex < state.ReceivedBits.size() &&
             (state.ReceivedBits[byteIndex] & mask) != 0u;
     }
 
-    static void MarkFragmentReceived(Reassembly& state, std::size_t index) noexcept {
+    static void MarkFragmentReceived(
+        Reassembly& state,
+        std::size_t index
+    ) noexcept {
         const std::size_t byteIndex = index >> 3u;
         const uint8_t mask = static_cast<uint8_t>(1u << (index & 7u));
         if (byteIndex < state.ReceivedBits.size()) {
-            state.ReceivedBits[byteIndex] = static_cast<uint8_t>(state.ReceivedBits[byteIndex] | mask);
+            state.ReceivedBits[byteIndex] =
+                static_cast<uint8_t>(state.ReceivedBits[byteIndex] | mask);
         }
     }
 
     void HandleFrame(const ESPNowReceivedFrame& frame) {
-        if (frame.PayloadLength < sizeof(FragmentHeader)) {
-            return;
-        }
+        if (frame.PayloadLength < sizeof(FragmentHeader)) return;
 
         FragmentHeader header;
         std::memcpy(&header, frame.Payload, sizeof(header));
@@ -148,40 +157,47 @@ private:
             sizeof(FragmentHeader) + header.FragmentLength > frame.PayloadLength ||
             header.TotalLength == 0 ||
             header.TotalLength > ESPRESSIO_ESPNOW_EVENT_MAX_PACKET_SIZE
-        ) {
-            return;
-        }
+        ) return;
 
         const std::size_t offset =
             static_cast<std::size_t>(header.FragmentIndex) * MaximumFragmentPayload;
-        if (offset + header.FragmentLength > header.TotalLength) {
-            return;
-        }
+        if (offset + header.FragmentLength > header.TotalLength) return;
 
-        // ESPNowReceivedFrame owns its payload inline and TaskExecutor copies
-        // that complete trivially-copyable frame into the asynchronous queue.
-        // Therefore the payload remains valid for this entire worker callback.
-        // Most Events fit one fragment, so avoid any reassembly allocation/copy.
+        // A queued ESPNowReceivedFrame owns its radio payload inline. Event's
+        // transport layer needs independent asynchronous ownership, so the
+        // single-fragment path performs exactly one copy into ExternalPreferred
+        // packet storage at this boundary.
         if (header.FragmentCount == 1) {
             if (
                 header.FragmentIndex != 0 ||
                 header.FragmentLength != header.TotalLength
-            ) {
-                return;
-            }
+            ) return;
 
             Event::IEventTransportReceiver* receiver = nullptr;
             {
                 std::lock_guard<std::mutex> lock(_mutex);
                 receiver = _receiver;
             }
-            if (receiver != nullptr) {
-                receiver->ReceiveEventTransportPacket(
-                    this,
-                    frame.Payload + sizeof(FragmentHeader),
-                    header.FragmentLength
-                );
+            if (receiver == nullptr) return;
+
+            ByteBuffer packetBytes;
+            try {
+                packetBytes.resize(header.FragmentLength);
+            } catch (...) {
+                return;
             }
+            std::memcpy(
+                packetBytes.data(),
+                frame.Payload + sizeof(FragmentHeader),
+                header.FragmentLength
+            );
+            receiver->ReceiveEventTransportPacket(
+                this,
+                Event::EventTransportPacket(
+                    std::move(packetBytes),
+                    header.MessageID
+                )
+            );
             return;
         }
 
@@ -190,7 +206,6 @@ private:
 
         {
             std::lock_guard<std::mutex> lock(_mutex);
-
             const uint64_t timeoutNanoseconds =
                 static_cast<uint64_t>(ESPRESSIO_ESPNOW_EVENT_REASSEMBLY_TIMEOUT_MS) *
                 1000000ULL;
@@ -231,9 +246,7 @@ private:
                                 right.LastReceiveMonotonicNanoseconds;
                         }
                     );
-                    if (oldest != _reassemblies.end()) {
-                        _reassemblies.erase(oldest);
-                    }
+                    if (oldest != _reassemblies.end()) _reassemblies.erase(oldest);
                 }
 
                 Reassembly reassembly;
@@ -243,8 +256,12 @@ private:
                 reassembly.FragmentCount = header.FragmentCount;
                 reassembly.LastReceiveMonotonicNanoseconds =
                     frame.ReceiveMonotonicNanoseconds;
-                reassembly.Data.resize(header.TotalLength);
-                _reassemblies.push_back(std::move(reassembly));
+                try {
+                    reassembly.Data.resize(header.TotalLength);
+                    _reassemblies.push_back(std::move(reassembly));
+                } catch (...) {
+                    return;
+                }
                 found = std::prev(_reassemblies.end());
             }
 
@@ -256,8 +273,7 @@ private:
                 return;
             }
 
-            found->LastReceiveMonotonicNanoseconds =
-                frame.ReceiveMonotonicNanoseconds;
+            found->LastReceiveMonotonicNanoseconds = frame.ReceiveMonotonicNanoseconds;
 
             if (!IsFragmentReceived(*found, header.FragmentIndex)) {
                 std::memcpy(
@@ -277,15 +293,14 @@ private:
         }
 
         if (receiver != nullptr && !completed.empty()) {
-            /*
-             * This runs on the Event protocol TaskExecutor, not the ESP-NOW
-             * TransportWorker. Deserialization, Event queueing and downstream
-             * listener work can therefore never consume the transport stack.
-             */
+            // Multi-fragment reassembly storage is already ExternalPreferred;
+            // transfer it directly into Event ownership with no second copy.
             receiver->ReceiveEventTransportPacket(
                 this,
-                completed.data(),
-                completed.size()
+                Event::EventTransportPacket(
+                    std::move(completed),
+                    header.MessageID
+                )
             );
         }
     }
@@ -296,33 +311,26 @@ private:
     ) {
         if (
             _transport == nullptr ||
-            packet.Data == nullptr ||
-            packet.Size == 0 ||
-            packet.Size > ESPRESSIO_ESPNOW_EVENT_MAX_PACKET_SIZE
-        ) {
-            return false;
-        }
+            !packet ||
+            packet.Size() > ESPRESSIO_ESPNOW_EVENT_MAX_PACKET_SIZE
+        ) return false;
 
         const std::size_t fragmentCountSize =
-            (packet.Size + MaximumFragmentPayload - 1) / MaximumFragmentPayload;
+            (packet.Size() + MaximumFragmentPayload - 1) / MaximumFragmentPayload;
 
         if (
             fragmentCountSize == 0 ||
             fragmentCountSize > UINT16_MAX ||
-            packet.Size > UINT32_MAX
-        ) {
-            return false;
-        }
+            packet.Size() > UINT32_MAX
+        ) return false;
 
-        const uint16_t fragmentCount =
-            static_cast<uint16_t>(fragmentCountSize);
-
+        const uint16_t fragmentCount = static_cast<uint16_t>(fragmentCountSize);
         std::array<uint8_t, MaximumProtocolPayload> payload{};
 
         for (uint16_t index = 0; index < fragmentCount; ++index) {
             const std::size_t offset =
                 static_cast<std::size_t>(index) * MaximumFragmentPayload;
-            const std::size_t remaining = packet.Size - offset;
+            const std::size_t remaining = packet.Size() - offset;
             const std::size_t fragmentLength =
                 std::min(remaining, MaximumFragmentPayload);
 
@@ -330,13 +338,13 @@ private:
             header.FragmentIndex = index;
             header.FragmentCount = fragmentCount;
             header.FragmentLength = static_cast<uint16_t>(fragmentLength);
-            header.TotalLength = static_cast<uint32_t>(packet.Size);
-            header.MessageID = packet.MessageID;
+            header.TotalLength = static_cast<uint32_t>(packet.Size());
+            header.MessageID = packet.MessageID();
 
             std::memcpy(payload.data(), &header, sizeof(header));
             std::memcpy(
                 payload.data() + sizeof(header),
-                packet.Data + offset,
+                packet.Data() + offset,
                 fragmentLength
             );
 
@@ -348,37 +356,26 @@ private:
                 return false;
             }
         }
-
         return true;
     }
 
 public:
     ESPNowEventTransport() = default;
 
-    /// <summary>Creates an Event transport pre-bound to a non-owning ESP-NOW transport reference.</summary>
     explicit ESPNowEventTransport(ESPNowTransport& transport)
-        : _transport(&transport) {
-    }
+        : _transport(&transport) {}
 
     ESPNowEventTransport(const ESPNowEventTransport&) = delete;
     ESPNowEventTransport& operator=(const ESPNowEventTransport&) = delete;
 
-    ~ESPNowEventTransport() override {
-        Shutdown();
-    }
+    ~ESPNowEventTransport() override { Shutdown(); }
 
-    /// <summary>Starts the asynchronous Event protocol worker and registers the Event protocol handler with an initialized ESP-NOW transport.</summary>
-    /// <returns>True when both worker and protocol-handler registration succeed.</returns>
     bool Initialize(
         ESPNowTransport& transport = ESPNowTransport::GetInstance(),
         ESPNowAsyncProtocolHandler::Configuration asyncConfiguration = {}
     ) {
-        if (_initialized) {
-            return true;
-        }
-        if (!transport.GetIsInitialized()) {
-            return false;
-        }
+        if (_initialized) return true;
+        if (!transport.GetIsInitialized()) return false;
 
         _transport = &transport;
         asyncConfiguration.Name = "espnowEvent";
@@ -391,9 +388,7 @@ public:
         }
 
         if (!_asyncHandler.Initialize(
-                [this](const ESPNowReceivedFrame& frame) {
-                    HandleFrame(frame);
-                },
+                [this](const ESPNowReceivedFrame& frame) { HandleFrame(frame); },
                 asyncConfiguration)) {
             _transport = nullptr;
             return false;
@@ -402,8 +397,6 @@ public:
         if (!_transport->RegisterProtocolHandler(
                 static_cast<uint8_t>(ESPNowProtocol::EventTransport),
                 [this](const ESPNowReceivedFrame& frame) {
-                    // The ESP-NOW TransportWorker only hands ownership to the
-                    // bounded Event protocol executor, then returns.
                     (void)_asyncHandler.Submit(frame);
                 })) {
             _asyncHandler.Shutdown();
@@ -415,7 +408,6 @@ public:
         return true;
     }
 
-    /// <summary>Unregisters the Event protocol handler, stops asynchronous processing, clears receiver/destinations/reassemblies, and detaches from ESP-NOW.</summary>
     void Shutdown() {
         if (!_initialized && _transport == nullptr) {
             _asyncHandler.Shutdown();
@@ -429,60 +421,41 @@ public:
         }
 
         _asyncHandler.Shutdown();
-
         {
             std::lock_guard<std::mutex> lock(_mutex);
             _receiver = nullptr;
             _destinationCount = 0;
             _reassemblies.clear();
         }
-
         _transport = nullptr;
         _initialized = false;
     }
 
-    /// <summary>Reports whether the Event transport protocol handler is currently initialized.</summary>
-    bool GetIsInitialized() const {
-        return _initialized;
-    }
+    bool GetIsInitialized() const { return _initialized; }
 
-    /// <summary>Returns task-executor statistics for inbound Event protocol processing.</summary>
     Task::TaskExecutionStatistics GetAsyncHandlerStatistics() const {
         return _asyncHandler.GetStatistics();
     }
 
-    /// <summary>Returns the number of inbound Event frames rejected during asynchronous handoff.</summary>
     uint64_t GetRejectedAsyncHandoffCount() const noexcept {
         return _asyncHandler.GetRejectedHandoffCount();
     }
 
-    /// <summary>Adds a destination peer for subsequent outbound Event packets.</summary>
-    /// <returns>True when the peer is already present or was added; false for zero addresses or exhausted capacity.</returns>
     bool AddDestination(const MacAddress& destination) {
-        if (destination.IsZero()) {
-            return false;
-        }
-
+        if (destination.IsZero()) return false;
         std::lock_guard<std::mutex> lock(_mutex);
         for (std::size_t index = 0; index < _destinationCount; ++index) {
-            if (_destinations[index] == destination) {
-                return true;
-            }
+            if (_destinations[index] == destination) return true;
         }
-        if (_destinationCount >= _destinations.size()) {
-            return false;
-        }
+        if (_destinationCount >= _destinations.size()) return false;
         _destinations[_destinationCount++] = destination;
         return true;
     }
 
-    /// <summary>Removes one destination peer from outbound Event delivery.</summary>
     bool RemoveDestination(const MacAddress& destination) {
         std::lock_guard<std::mutex> lock(_mutex);
         for (std::size_t index = 0; index < _destinationCount; ++index) {
-            if (_destinations[index] != destination) {
-                continue;
-            }
+            if (_destinations[index] != destination) continue;
             for (std::size_t move = index + 1; move < _destinationCount; ++move) {
                 _destinations[move - 1] = _destinations[move];
             }
@@ -493,32 +466,19 @@ public:
         return false;
     }
 
-    /// <summary>Removes all outbound Event destination peers.</summary>
     void ClearDestinations() {
         std::lock_guard<std::mutex> lock(_mutex);
         _destinationCount = 0;
-        for (auto& destination : _destinations) {
-            destination = MacAddress{};
-        }
+        for (auto& destination : _destinations) destination = MacAddress{};
     }
 
-    /// <summary>Returns the number of configured outbound Event destination peers.</summary>
     std::size_t GetDestinationCount() const {
         std::lock_guard<std::mutex> lock(_mutex);
         return _destinationCount;
     }
 
-    /// <summary>Fragments and sends an Event transport packet to every configured destination peer.</summary>
-    /// <returns>True only when at least one destination exists and every destination accepts every fragment.</returns>
-    bool Send(const Event::EventTransportPacket& packet) override {
-        if (
-            !_initialized ||
-            _transport == nullptr ||
-            packet.Data == nullptr ||
-            packet.Size == 0
-        ) {
-            return false;
-        }
+    bool Send(Event::EventTransportPacket packet) override {
+        if (!_initialized || _transport == nullptr || !packet) return false;
 
         std::array<MacAddress, ESPRESSIO_ESPNOW_EVENT_MAX_DESTINATIONS> destinations{};
         std::size_t destinationCount = 0;
@@ -529,25 +489,19 @@ public:
                 destinations[index] = _destinations[index];
             }
         }
-
-        if (destinationCount == 0) {
-            return false;
-        }
+        if (destinationCount == 0) return false;
 
         bool allAccepted = true;
         for (std::size_t index = 0; index < destinationCount; ++index) {
-            if (!SendToDestination(destinations[index], packet)) {
-                allAccepted = false;
-            }
+            if (!SendToDestination(destinations[index], packet)) allAccepted = false;
         }
         return allAccepted;
     }
 
-    /// <summary>Sets the non-owning Event transport receiver that consumes fully reassembled inbound packets.</summary>
     void SetReceiver(Event::IEventTransportReceiver* receiver) override {
         std::lock_guard<std::mutex> lock(_mutex);
         _receiver = receiver;
     }
 };
 
-}
+} // namespace ESPressio::ESPNow
