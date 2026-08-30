@@ -88,7 +88,7 @@ jobs:
           #include <type_traits>
           #include <ESPressio_ESP32.hpp>
           #include <ESPressio_ThreadManager.hpp>
-          #include <ESPressio_ESP32WiFi.hpp>
+          #include <ESPressio_WiFiPlatform.hpp>
           #include <ESPressio_WiFiWorker.hpp>
           #include <ESPressio_ESPNow.hpp>
           #include <ESPressio_ESPNowWiFiCoordinator.hpp>
@@ -109,7 +109,7 @@ jobs:
               ) override {}
           } observer;
 
-          ESPressio::WiFi::ESP32WiFiPlatform wifiPlatform;
+          ESPressio::WiFi::WiFiPlatform wifiPlatform;
           ESPressio::WiFi::WiFiManager wifiManager(wifiPlatform);
           ESPressio::WiFi::WiFiWorker wifiWorker(wifiManager);
           auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
