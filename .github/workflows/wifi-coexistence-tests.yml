@@ -83,6 +83,7 @@ jobs:
           EOF
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
+          #include <Network.h>
           #include <type_traits>
           #include <ESPressio_ESP32.hpp>
           #include <ESPressio_ThreadManager.hpp>
