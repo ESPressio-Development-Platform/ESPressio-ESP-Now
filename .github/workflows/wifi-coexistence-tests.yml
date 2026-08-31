@@ -153,6 +153,7 @@ jobs:
               (void)transport.GetLocalEndpointAddress();
               (void)transport.SendDetailed(peer.Address, 64, nullptr, 0);
               (void)transport.GetLastSendResult();
+              (void)transport.GetReceiveQueueRejectedCount();
           }
           void loop() { delay(1000); }
           EOF
@@ -182,6 +183,12 @@ jobs:
           fi
           grep -q 'WorkerIterationIntervalMilliseconds' src/ESPressio_ESPNowTypes.hpp
           grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp
+          grep -q 'GetReceiveQueueRejectedCount' src/ESPressio_ESPNowTransport.hpp
+          grep -q '_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed)' src/ESPressio_ESPNowTransport.hpp
+          if grep -q '(void)self->_receiveQueue->Send(&frame, 0)' src/ESPressio_ESPNowTransport.hpp; then
+            echo 'Native ESP-NOW receive callback must account for rejected bounded-queue submissions.' >&2
+            exit 1
+          fi
           if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then
             echo 'Raw ESP-NOW receive task regressed into transport.' >&2
             exit 1
