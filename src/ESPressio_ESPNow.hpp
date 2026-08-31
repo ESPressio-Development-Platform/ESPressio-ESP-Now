@@ -22,15 +22,19 @@
 #include "ESPressio_ESPNowTransport.hpp"
 #include "ESPressio_ESPNowClockSynchronizer.hpp"
 
+#if __has_include(<ESPressio_IRadio.hpp>)
+#include "ESPressio_ESPNowRadio.hpp"
+#endif
+
 /*
  * Higher-level integrations remain opt-in so the normal umbrella does not
  * acquire their dependencies merely because the implementations exist:
  *
- *   ESPressio_ESPNowEventTransport.hpp      -> ESPressio Event >=6.0.0 <7.0.0
- *   ESPressio_ESPNowEvents.hpp              -> ESPressio Event >=6.0.0 <7.0.0
- *   ESPressio_ESPNowTransportEventBridge.hpp-> ESPressio Event >=6.0.0 <7.0.0
- *   ESPressio_ESPNowCommandTransport.hpp    -> ESPressio Command >=1.0.0 <2.0.0
- *   ESPressio_ESPNowSecureTransport.hpp     -> ESPressio Security >=0.3.0 <1.0.0
+ *   ESPressio_ESPNowEventTransport.hpp      -> ESPressio Event
+ *   ESPressio_ESPNowEvents.hpp              -> ESPressio Event
+ *   ESPressio_ESPNowTransportEventBridge.hpp-> ESPressio Event
+ *   ESPressio_ESPNowCommandTransport.hpp    -> ESPressio Command
+ *   ESPressio_ESPNowSecureTransport.hpp     -> ESPressio Security
  *
  * ESPressio Observable is a core dependency because transport and peer
  * lifecycle changes are observable directly from ESPNowTransport.
