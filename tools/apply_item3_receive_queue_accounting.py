@@ -2,8 +2,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 transport_path = ROOT / "src/ESPressio_ESPNowTransport.hpp"
-workflow_path = ROOT / ".github/workflows/wifi-coexistence-tests.yml"
-
 transport = transport_path.read_text(encoding="utf-8")
 
 old = """    std::atomic<ESPNowSendFailure> _lastSendFailure{ESPNowSendFailure::None};\n    std::atomic<int32_t> _lastSendNativeError{0};\n"""
@@ -35,20 +33,3 @@ if new not in transport:
     transport = transport.replace(old, new, 1)
 
 transport_path.write_text(transport, encoding="utf-8")
-
-workflow = workflow_path.read_text(encoding="utf-8")
-old = """              (void)transport.GetLastSendResult();\n"""
-new = """              (void)transport.GetLastSendResult();\n              (void)transport.GetReceiveQueueRejectedCount();\n"""
-if new not in workflow:
-    if old not in workflow:
-        raise SystemExit("compile-surface getter guard failed")
-    workflow = workflow.replace(old, new, 1)
-
-old = """          grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp\n          if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then\n"""
-new = """          grep -q 'PrecisionThread' src/ESPressio_ESPNowTransport.hpp\n          grep -q 'GetReceiveQueueRejectedCount' src/ESPressio_ESPNowTransport.hpp\n          grep -q '_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed)' src/ESPressio_ESPNowTransport.hpp\n          if grep -q '(void)self->_receiveQueue->Send(&frame, 0)' src/ESPressio_ESPNowTransport.hpp; then\n            echo 'Native ESP-NOW receive callback must account for rejected bounded-queue submissions.' >&2\n            exit 1\n          fi\n          if grep -q 'xTaskCreatePinnedToCore' src/ESPressio_ESPNowTransport.hpp; then\n"""
-if new not in workflow:
-    if old not in workflow:
-        raise SystemExit("source guard insertion failed")
-    workflow = workflow.replace(old, new, 1)
-
-workflow_path.write_text(workflow, encoding="utf-8")
