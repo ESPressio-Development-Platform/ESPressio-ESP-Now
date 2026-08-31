@@ -179,12 +179,10 @@ public:
 
         const bool registered = transport.RegisterProtocolHandler(
             config.Protocol,
-            [this](const ESPNowReceivedFrame& frame) {
-                // The ESP-NOW TransportWorker performs no Command parsing,
-                // policy execution, handler invocation, or response work.
-                // Ownership is handed to the bounded application executor and
-                // the transport stack can unwind immediately.
-                (void)_asyncHandler.Submit(frame);
+            [this](ESPNowReceivedFrameLease&& frame) {
+                // Move the transport-owned packet lease to the bounded application executor.
+                // Payload bytes remain stationary in the transport receive pool.
+                (void)_asyncHandler.Submit(std::move(frame));
             }
         );
 
