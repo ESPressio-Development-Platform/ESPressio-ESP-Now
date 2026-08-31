@@ -1,0 +1,51 @@
+name: Radio Provider
+
+on:
+  push:
+    branches:
+      - feature/53-radio-provider
+  pull_request:
+
+jobs:
+  esp32-radio-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Create Radio provider smoke project
+        shell: bash
+        run: |
+          PROJECT="$RUNNER_TEMP/espressio-espnow-radio-ci"
+          mkdir -p "$PROJECT/src"
+          cat > "$PROJECT/platformio.ini" <<'EOF'
+          [env:esp32dev]
+          platform = espressif32
+          board = esp32dev
+          framework = arduino
+          build_flags = -std=gnu++17
+          build_unflags = -std=gnu++11
+          lib_ldf_mode = deep+
+          lib_deps =
+              https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git#feature/53-radio-provider
+          EOF
+          cat > "$PROJECT/src/main.cpp" <<'EOF'
+          #include <Arduino.h>
+          #include <ESPressio_Radio.hpp>
+          #include <ESPressio_ESPNowRadio.hpp>
+
+          ESPressio::ESPNow::ESPNowRadio radio;
+          ESPressio::Radio::RadioTransport transport(1);
+          ESPressio::Radio::RadioWorker worker(transport);
+
+          void setup() {
+              worker.AddInterface(radio, true);
+          }
+
+          void loop() {}
+          EOF
+      - name: Compile Radio provider
+        run: pio run -d "$RUNNER_TEMP/espressio-espnow-radio-ci"
