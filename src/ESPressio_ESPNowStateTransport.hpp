@@ -93,21 +93,12 @@ private:
     mutable std::recursive_mutex _mutex;
     bool _initialized = false;
 
-    /// <summary>Materializes bounded state-transport tables only when runtime initialization begins.</summary>
-    /// <remarks>Keeping construction allocation-free prevents globally constructed adapters from binding their ExternalPreferred storage to the default provider before ESPressio-ESP32 installs the PSRAM-aware provider.</remarks>
     bool EnsureStorage() {
         try {
-            if (_peers.size() != TMaximumPeers) {
-                _peers.assign(TMaximumPeers, PeerRecord{});
-            }
-            if (_pending.size() != MaximumPending) {
-                _pending.assign(MaximumPending, PendingRecord{});
-            }
+            if (_peers.size() != TMaximumPeers) _peers.assign(TMaximumPeers, PeerRecord{});
+            if (_pending.size() != MaximumPending) _pending.assign(MaximumPending, PendingRecord{});
             if (_pendingSubscriptions.size() != MaximumPending) {
-                _pendingSubscriptions.assign(
-                    MaximumPending,
-                    PendingSubscriptionRecord{}
-                );
+                _pendingSubscriptions.assign(MaximumPending, PendingSubscriptionRecord{});
             }
             return true;
         } catch (...) {
@@ -495,8 +486,6 @@ private:
     }
 
 public:
-    /// <summary>Creates a State transport adapter without allocating its bounded runtime tables.</summary>
-    /// <remarks>Runtime tables are materialized during <c>Initialize()</c> so ExternalPreferred storage can bind to the installed platform memory provider rather than allocating during global construction.</remarks>
     ESPNowStateTransport(
         Publisher& publisher,
         RemoteManager& remote,
@@ -512,7 +501,7 @@ public:
         if (!_transport.GetIsInitialized() || !EnsureStorage()) return false;
         if (!_transport.RegisterProtocolHandler(
                 static_cast<uint8_t>(ESPNowProtocol::StateTransport),
-                [this](const ESPNowReceivedFrame& frame) { HandleFrame(frame); })) {
+                [this](ESPNowReceivedFrameLease&& lease) { HandleFrame(lease.Frame()); })) {
             return false;
         }
         if (!_transport.RegisterMaintenanceHandler(
