@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: feature/1-system-memory-policy, path: deps/ESPressio-System}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: feature/30-async-command-routing, path: deps/ESPressio-Command}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: item_4_saturation_testing, path: deps/ESPressio-Command}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
       - name: Configure
@@ -39,9 +39,9 @@ jobs:
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: feature/1-task-execution, path: deps/ESPressio-Task}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: feature/29-platform-clock-abstractions, path: deps/ESPressio-Timing}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: item_4_saturation_testing, path: deps/ESPressio-Timing}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: main, path: deps/ESPressio-Units}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: item_4_saturation_testing, path: deps/ESPressio-Units}
       - uses: actions/checkout@v4
         with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
       - uses: actions/checkout@v4
@@ -73,5 +73,5 @@ jobs:
             echo '#include <Network.h>'
             cat examples/SecurePeer/SecurePeer.ino
           } > "$PROJECT/src/main.cpp"
-      - name: Compile SecurePeer against coordinated current working branches without RTTI
+      - name: Compile SecurePeer against coordinated Item-4 saturation branches without RTTI
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-security-ci"
