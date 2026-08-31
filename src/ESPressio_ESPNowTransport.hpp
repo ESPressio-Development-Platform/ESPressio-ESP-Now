@@ -170,6 +170,7 @@ private:
     std::shared_ptr<TransportObservable> _observable;
     std::atomic<ESPNowSendFailure> _lastSendFailure{ESPNowSendFailure::None};
     std::atomic<int32_t> _lastSendNativeError{0};
+    std::atomic<uint64_t> _receiveQueueRejectedCount{0};
 
     /// <summary>Constructs the singleton without performing dynamic allocation.</summary>
     /// <remarks>This permits references to <c>GetInstance()</c> from global objects without binding ExternalPreferred storage to the pre-platform default provider.</remarks>
@@ -518,7 +519,9 @@ private:
             );
         }
         frame.HasLocalInterface = ResolveLocalInterface(destination, frame.LocalInterface);
-        (void)self->_receiveQueue->Send(&frame, 0);
+        if (!static_cast<bool>(self->_receiveQueue->Send(&frame, 0))) {
+            self->_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
 #if ESP_IDF_VERSION_MAJOR >= 5
@@ -614,6 +617,7 @@ public:
         }
         _lastSendFailure.store(ESPNowSendFailure::None);
         _lastSendNativeError.store(0);
+        _receiveQueueRejectedCount.store(0, std::memory_order_relaxed);
         {
             std::lock_guard<std::mutex> lock(_radioBindingMutex);
             _radioBinding.Available = true;
@@ -654,6 +658,12 @@ public:
     bool GetIsInitialized() const { return _initialized.load(std::memory_order_acquire); }
     uint32_t GetReceiveTaskMinimumFreeStackBytes() const { return _worker ? _worker->MinimumFreeStackBytes() : 0; }
     uint32_t GetWorkerIterationIntervalMilliseconds() const noexcept { return _config.WorkerIterationIntervalMilliseconds; }
+
+    /// <summary>Returns the number of valid native ESP-NOW frames dropped because the bounded receive queue could not accept them.</summary>
+    /// <remarks>The native receive callback remains nonblocking; this counter is incremented atomically without logging, locking, allocation, or observer dispatch.</remarks>
+    uint64_t GetReceiveQueueRejectedCount() const noexcept {
+        return _receiveQueueRejectedCount.load(std::memory_order_relaxed);
+    }
 
     ESPNowSendResult GetLastSendResult() const noexcept {
         ESPNowSendResult result;
