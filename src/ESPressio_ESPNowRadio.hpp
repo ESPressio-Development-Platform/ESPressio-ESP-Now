@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include <ESPressio_IRadio.hpp>
+#include <ESPressio_Memory.hpp>
 
 #include "ESPressio_ESPNowTransport.hpp"
 
@@ -32,12 +33,15 @@ struct ESPNowRadioConfiguration {
 /// <summary>
 /// ESP-NOW concrete for ESPressio-Radio. It transports opaque radio packets through one reserved ESP-NOW protocol ID;
 /// it does not inspect ESPressio primitives or establish application-message authenticity. ESP-NOW callbacks copy into
-/// a bounded queue and wake RadioWorker so onward transport never executes in the ESP-NOW callback context.
+/// bounded provider-owned storage and wake RadioWorker so onward transport never executes in the ESP-NOW callback context.
 /// </summary>
 class ESPNowRadio final : public Radio::IRadio {
 private:
     static constexpr std::size_t ESPNowTransportWireHeaderBytes = 8;
     static constexpr std::size_t MaximumPayloadBytes = MaximumFrameSize - ESPNowTransportWireHeaderBytes;
+
+    static_assert(ESPRESSIO_ESPNOW_RADIO_RX_QUEUE_DEPTH > 1, "ESP-NOW radio RX queue depth must be at least two");
+    static_assert(ESPRESSIO_ESPNOW_RADIO_RX_QUEUE_DEPTH <= 255, "ESP-NOW radio RX queue depth must fit its indices");
 
     struct ReceivedPacket {
         Radio::RadioAddress Source{};
@@ -45,6 +49,11 @@ private:
         uint64_t TimestampNanoseconds = 0;
         std::array<uint8_t, MaximumPayloadBytes> Payload{};
     };
+
+    using ReceiveQueue = System::Memory::Vector<
+        ReceivedPacket,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >;
 
     ESPNowRadioConfiguration _configuration{};
     ESPNowTransport& _transport;
@@ -56,7 +65,7 @@ private:
     bool _ownsTransport = false;
     std::array<MacAddress, ESPRESSIO_ESPNOW_RADIO_MAX_AUTO_PEERS> _knownPeers{};
     std::array<bool, ESPRESSIO_ESPNOW_RADIO_MAX_AUTO_PEERS> _knownPeerUsed{};
-    std::array<ReceivedPacket, ESPRESSIO_ESPNOW_RADIO_RX_QUEUE_DEPTH> _receiveQueue{};
+    ReceiveQueue _receiveQueue{};
     std::atomic<uint8_t> _writeIndex{0};
     std::atomic<uint8_t> _readIndex{0};
 
@@ -100,7 +109,11 @@ private:
     }
 
     void Receive(const ESPNowReceivedFrame& frame) noexcept {
-        if (!_started.load(std::memory_order_acquire) || frame.PayloadLength > MaximumPayloadBytes) return;
+        if (
+            !_started.load(std::memory_order_acquire) ||
+            frame.PayloadLength > MaximumPayloadBytes ||
+            _receiveQueue.empty()
+        ) return;
 
         const uint8_t write = _writeIndex.load(std::memory_order_relaxed);
         const uint8_t next = static_cast<uint8_t>((write + 1u) % _receiveQueue.size());
@@ -111,6 +124,7 @@ private:
         queued.Length = static_cast<uint16_t>(frame.PayloadLength);
         queued.TimestampNanoseconds = frame.ReceiveMonotonicNanoseconds;
         if (frame.PayloadLength != 0 && frame.Payload != nullptr) {
+            // ESPNowTransport owns frame.Payload only for this callback. Retaining the packet therefore requires one copy.
             std::memcpy(queued.Payload.data(), frame.Payload, frame.PayloadLength);
         }
         _writeIndex.store(next, std::memory_order_release);
@@ -128,6 +142,14 @@ public:
     bool Start() override {
         if (_started.load(std::memory_order_acquire)) return true;
         if (_configuration.Protocol < static_cast<uint8_t>(ESPNowProtocol::UserBase)) return false;
+
+        try {
+            if (_receiveQueue.size() != ESPRESSIO_ESPNOW_RADIO_RX_QUEUE_DEPTH) {
+                _receiveQueue.resize(ESPRESSIO_ESPNOW_RADIO_RX_QUEUE_DEPTH);
+            }
+        } catch (...) {
+            return false;
+        }
 
         _ownsTransport = !_transport.GetIsInitialized();
         if (_ownsTransport && !_transport.Initialize(_configuration.Transport)) {
