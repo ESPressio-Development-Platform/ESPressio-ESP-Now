@@ -1,9 +1,26 @@
 #include <cassert>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 #include <ESPressio_ESPNowTypes.hpp>
 
 using namespace ESPressio;
+
+namespace {
+
+struct ReleaseProbe {
+    unsigned Calls = 0;
+    uint16_t Slot = 0;
+};
+
+void Release(void* owner, uint16_t slot) noexcept {
+    auto* probe = static_cast<ReleaseProbe*>(owner);
+    ++probe->Calls;
+    probe->Slot = slot;
+}
+
+} // namespace
 
 int main() {
     static_assert(ESPNow::MacAddressLength == 6);
@@ -12,6 +29,11 @@ int main() {
     static_assert(static_cast<uint8_t>(ESPNow::ESPNowProtocol::EventTransport) == 2);
     static_assert(static_cast<uint8_t>(ESPNow::ESPNowProtocol::CommandTransport) == 3);
     static_assert(static_cast<uint8_t>(ESPNow::ESPNowProtocol::UserBase) == 64);
+
+    static_assert(!std::is_copy_constructible_v<ESPNow::ESPNowReceivedFrameLease>);
+    static_assert(!std::is_copy_assignable_v<ESPNow::ESPNowReceivedFrameLease>);
+    static_assert(std::is_nothrow_move_constructible_v<ESPNow::ESPNowReceivedFrameLease>);
+    static_assert(std::is_nothrow_move_assignable_v<ESPNow::ESPNowReceivedFrameLease>);
 
     ESPNow::MacAddress zero;
     assert(zero.IsZero());
@@ -33,12 +55,6 @@ int main() {
     assert(transport.ReceiveTaskStackSize == 4096);
     assert(transport.ReceiveQueueLength == 6);
 
-    // #47: application Command/Event work now leaves the transport worker via
-    // bounded asynchronous handoff. Keep the transport worker at 4096 bytes for
-    // the first post-handoff hardware high-water measurement rather than
-    // retaining the temporary 6144-byte synchronous-execution safety margin.
-    // Applications remain free to request either smaller experimental or larger
-    // conservative values after measuring their own workloads.
     transport.ReceiveTaskStackSize = 8192;
     transport.ReceiveQueueLength = 12;
     assert(transport.ReceiveTaskStackSize == 8192);
@@ -48,6 +64,40 @@ int main() {
     assert(clock.Mode == ESPNow::ESPNowClockSynchronizationMode::Disabled);
     assert(clock.SynchronizationIntervalMilliseconds == 1000);
     assert(clock.AdjustmentMode == Timing::ClockSynchronizationAdjustmentMode::SlewOnly);
+
+    // #54: moving a receive lease must transfer only ownership metadata. The
+    // frame and payload addresses remain identical and the pool slot is returned
+    // exactly once by the final owner.
+    ESPNow::ESPNowReceivedFrame frame;
+    frame.PayloadLength = 3;
+    frame.Payload[0] = 0x11;
+    frame.Payload[1] = 0x22;
+    frame.Payload[2] = 0x33;
+    const auto* const frameAddress = &frame;
+    const auto* const payloadAddress = frame.Payload;
+    ReleaseProbe probe;
+
+    ESPNow::ESPNowReceivedFrameLease first(&frame, &probe, 7, &Release);
+    assert(first);
+    ESPNow::ESPNowReceivedFrameLease second(std::move(first));
+    assert(!first);
+    assert(second);
+    assert(&second.Frame() == frameAddress);
+    assert(second->Payload == payloadAddress);
+
+    ESPNow::ESPNowReceivedFrameLease third;
+    third = std::move(second);
+    assert(!second);
+    assert(third);
+    assert(&third.Frame() == frameAddress);
+    assert(third->Payload == payloadAddress);
+    assert(probe.Calls == 0);
+    third.Reset();
+    assert(!third);
+    assert(probe.Calls == 1);
+    assert(probe.Slot == 7);
+    third.Reset();
+    assert(probe.Calls == 1);
 
     return 0;
 }
