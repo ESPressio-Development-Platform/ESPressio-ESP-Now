@@ -1,6 +1,6 @@
 {
     "name": "ESPressio-ESPNow",
-    "description": "ESP-NOW transport and distributed ESPressio implementations for ESP32, including optional Event, Command, and Security transports",
+    "description": "ESP-NOW transport and distributed ESPressio implementations for ESP32, including optional Event, Command, Security, and ESPressio-Radio integration",
     "keywords": "espnow,esp-now,esp32,wireless,peer-to-peer,clock,synchronization,event,command,security,encryption,transport,observable,threads,task,radio,espressio",
     "authors": {"name":"Simon J. Stuart","maintainer":true,"url":"https://espressio.org"},
     "homepage": "https://espressio.org",
@@ -31,12 +31,12 @@
         },
         {
             "name":"ESPressio-Units",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#experiment/serializable-no-eager-reserve-ab",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#item_4_saturation_testing",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Timing",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#experiment/serializable-no-eager-reserve-ab",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#item_4_saturation_testing",
             "platforms":"espressif32"
         },
         {
@@ -51,12 +51,12 @@
         },
         {
             "name":"ESPressio-Event",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#experiment/serializable-no-eager-reserve-ab",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#item_4_saturation_testing",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Command",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#experiment/serializable-no-eager-reserve-ab",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#item_4_saturation_testing",
             "platforms":"espressif32"
         }
     ]
