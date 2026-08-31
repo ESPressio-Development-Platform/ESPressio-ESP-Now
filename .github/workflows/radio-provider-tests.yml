@@ -28,7 +28,6 @@ jobs:
           framework = arduino
           build_flags = -std=gnu++17
           build_unflags = -std=gnu++11
-          lib_ldf_mode = deep+
           lib_deps =
               https://github.com/ESPressio-Development-Platform/ESPressio-System.git#feature/1-system-memory-policy
               https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#feature/1-task-execution
