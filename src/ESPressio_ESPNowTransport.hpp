@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -45,9 +46,13 @@
 namespace ESPressio {
 namespace ESPNow {
 
+/// <summary>
+/// ESP-NOW transport with a bounded, externally-preferred receive pool. The native callback copies an accepted payload
+/// exactly once into an owned pool slot; all subsequent receive stages transfer a move-only slot lease.
+/// </summary>
 class ESPNowTransport {
 public:
-    using ProtocolHandler = std::function<void(const ESPNowReceivedFrame&)>;
+    using ProtocolHandler = std::function<void(ESPNowReceivedFrameLease&&)>;
     using MaintenanceHandler = std::function<void(uint64_t)>;
 
 private:
@@ -70,10 +75,9 @@ private:
         std::shared_ptr<MaintenanceHandler> Handler;
     };
 
-    /// <summary>Queue-ready receive record containing the already decoded transport envelope.</summary>
-    /// <remarks>The native callback copies only the application payload once into <c>Received</c>; the worker consumes that record directly instead of materializing a second payload-bearing frame.</remarks>
-    struct CallbackFrame {
-        ESPNowReceivedFrame Received;
+    /// <summary>One externally-preferred payload-bearing pool slot.</summary>
+    struct ReceivePoolSlot {
+        ESPNowReceivedFrame Received{};
         wifi_interface_t LocalInterface = WIFI_IF_STA;
         bool HasLocalInterface = false;
     };
@@ -89,14 +93,16 @@ private:
         ESPNowPeerConfig Config;
     };
 
-    static constexpr auto ExternalPreferred =
-        System::Memory::MemoryPolicy::ExternalPreferred;
+    static constexpr auto ExternalPreferred = System::Memory::MemoryPolicy::ExternalPreferred;
+    static constexpr auto Internal = System::Memory::MemoryPolicy::Internal;
+    static constexpr std::size_t MaximumReceivePoolSlots = 64;
 
     using HandlerStorage = System::Memory::Vector<HandlerRecord, ExternalPreferred>;
     using MaintenanceStorage = System::Memory::Vector<MaintenanceRecord, ExternalPreferred>;
     using PeerHintStorage = System::Memory::Vector<PeerInterfaceHint, ExternalPreferred>;
     using ManagedPeerStorage = System::Memory::Vector<ManagedPeerRecord, ExternalPreferred>;
     using PeerConfigSnapshot = System::Memory::Vector<ESPNowPeerConfig, ExternalPreferred>;
+    using ReceivePoolStorage = System::Memory::Vector<ReceivePoolSlot, ExternalPreferred>;
 
     class TransportObservable final : public Observable::ThreadSafeObservable {
         template<typename Callback>
@@ -139,8 +145,12 @@ private:
             const uint32_t freeBytes = execution.MinimumFreeStackBytes(execution.Current());
             uint32_t previous = _minimumFreeStackBytes.load(std::memory_order_relaxed);
             while ((previous == 0 || freeBytes < previous) &&
-                   !_minimumFreeStackBytes.compare_exchange_weak(previous, freeBytes,
-                       std::memory_order_release, std::memory_order_relaxed)) {}
+                   !_minimumFreeStackBytes.compare_exchange_weak(
+                       previous,
+                       freeBytes,
+                       std::memory_order_release,
+                       std::memory_order_relaxed
+                   )) {}
             _owner.ProcessWorkerIteration();
         }
     private:
@@ -148,12 +158,15 @@ private:
         std::atomic<uint32_t> _minimumFreeStackBytes{0};
     };
 
-    using TransportWorkerPtr =
-        System::Memory::UniquePtr<TransportWorker, ExternalPreferred>;
+    using TransportWorkerPtr = System::Memory::UniquePtr<TransportWorker, ExternalPreferred>;
 
-    ESPNowTransportConfig _config;
+    ESPNowTransportConfig _config{};
     std::unique_ptr<System::Queue::IMessageQueue> _receiveQueue;
     TransportWorkerPtr _worker;
+    ReceivePoolStorage _receivePool;
+    std::atomic<uint64_t> _receivePoolFreeMask{0};
+    std::atomic<uint32_t> _receivePoolActiveLeases{0};
+
     HandlerStorage _handlers;
     mutable std::mutex _handlerMutex;
     MaintenanceStorage _maintenanceHandlers;
@@ -172,67 +185,93 @@ private:
     std::atomic<int32_t> _lastSendNativeError{0};
     std::atomic<uint64_t> _receiveQueueRejectedCount{0};
 
-    /// <summary>Constructs the singleton without performing dynamic allocation.</summary>
-    /// <remarks>This permits references to <c>GetInstance()</c> from global objects without binding ExternalPreferred storage to the pre-platform default provider.</remarks>
     ESPNowTransport() = default;
+
+    static uint64_t PoolMask(std::size_t slotCount) noexcept {
+        if (slotCount == 0) return 0;
+        if (slotCount >= MaximumReceivePoolSlots) return UINT64_MAX;
+        return (uint64_t{1} << slotCount) - 1u;
+    }
 
     bool EnsureObservable() {
         if (_observable) return true;
         try {
-            _observable = System::Memory::MakeShared<
-                TransportObservable,
-                ExternalPreferred
-            >();
+            _observable = System::Memory::MakeShared<TransportObservable, ExternalPreferred>();
             return static_cast<bool>(_observable);
         } catch (...) {
             return false;
         }
     }
 
-    /// <summary>Materializes bounded runtime tables after the platform memory provider is available.</summary>
     bool EnsureRuntimeStorage() {
         if (!EnsureObservable()) return false;
         try {
-            if (_handlers.size() != ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS) {
-                _handlers.assign(
-                    ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS,
-                    HandlerRecord{}
-                );
-            }
-            if (_maintenanceHandlers.size() != ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS) {
-                _maintenanceHandlers.assign(
-                    ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS,
-                    MaintenanceRecord{}
-                );
-            }
-            if (_peerInterfaceHints.size() != ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS) {
-                _peerInterfaceHints.assign(
-                    ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS,
-                    PeerInterfaceHint{}
-                );
-            }
-            if (_managedPeers.size() != ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS) {
-                _managedPeers.assign(
-                    ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS,
-                    ManagedPeerRecord{}
-                );
-            }
+            if (_handlers.size() != ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS)
+                _handlers.assign(ESPRESSIO_ESPNOW_MAX_PROTOCOL_HANDLERS, HandlerRecord{});
+            if (_maintenanceHandlers.size() != ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS)
+                _maintenanceHandlers.assign(ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS, MaintenanceRecord{});
+            if (_peerInterfaceHints.size() != ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS)
+                _peerInterfaceHints.assign(ESPRESSIO_ESPNOW_MAX_INTERFACE_HINTS, PeerInterfaceHint{});
+            if (_managedPeers.size() != ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS)
+                _managedPeers.assign(ESPRESSIO_ESPNOW_MAX_MANAGED_PEERS, ManagedPeerRecord{});
             return true;
         } catch (...) {
             return false;
         }
     }
 
-    static ESPNowTransport*& CallbackInstance() {
+    bool EnsureReceivePool(std::size_t slotCount) {
+        if (slotCount == 0 || slotCount > MaximumReceivePoolSlots) return false;
+        if (_receivePoolActiveLeases.load(std::memory_order_acquire) != 0) {
+            return _receivePool.size() == slotCount;
+        }
+        try {
+            if (_receivePool.size() != slotCount) {
+                _receivePool.assign(slotCount, ReceivePoolSlot{});
+            } else {
+                for (auto& slot : _receivePool) slot = ReceivePoolSlot{};
+            }
+        } catch (...) {
+            return false;
+        }
+        _receivePoolFreeMask.store(PoolMask(slotCount), std::memory_order_release);
+        return true;
+    }
+
+    bool TryAcquireReceiveSlot(uint16_t& slot) noexcept {
+        const std::size_t count = _receivePool.size();
+        for (std::size_t i = 0; i < count; ++i) {
+            const uint64_t bit = uint64_t{1} << i;
+            const uint64_t previous = _receivePoolFreeMask.fetch_and(~bit, std::memory_order_acq_rel);
+            if ((previous & bit) != 0) {
+                _receivePoolActiveLeases.fetch_add(1, std::memory_order_relaxed);
+                slot = static_cast<uint16_t>(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void ReleaseReceiveSlot(uint16_t slot) noexcept {
+        if (slot >= _receivePool.size()) return;
+        _receivePoolFreeMask.fetch_or(uint64_t{1} << slot, std::memory_order_release);
+        _receivePoolActiveLeases.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    static void ReleaseReceiveSlotLease(void* owner, uint16_t slot) noexcept {
+        if (owner != nullptr) static_cast<ESPNowTransport*>(owner)->ReleaseReceiveSlot(slot);
+    }
+
+    static ESPNowTransport*& CallbackInstance() noexcept {
         static ESPNowTransport* instance = nullptr;
         return instance;
     }
 
-    static uint64_t GetRawMonotonicNanoseconds() {
+    static uint64_t GetRawMonotonicNanoseconds() noexcept {
         return System::Clock::Monotonic().NowNanoseconds();
     }
 
-    static ESPNowSendFailure ClassifySendFailure(esp_err_t error) {
+    static ESPNowSendFailure ClassifySendFailure(esp_err_t error) noexcept {
         if (error == ESP_OK) return ESPNowSendFailure::None;
 #ifdef ESP_ERR_ESPNOW_NOT_INIT
         if (error == ESP_ERR_ESPNOW_NOT_INIT) return ESPNowSendFailure::NotInitialized;
@@ -258,11 +297,11 @@ private:
         return ESPNowSendFailure::Unknown;
     }
 
-    static wifi_interface_t ExplicitInterface(ESPNowWiFiInterface interface) {
+    static wifi_interface_t ExplicitInterface(ESPNowWiFiInterface interface) noexcept {
         return interface == ESPNowWiFiInterface::AccessPoint ? WIFI_IF_AP : WIFI_IF_STA;
     }
 
-    static ESPNowWiFiInterface PublicInterface(wifi_interface_t interface) {
+    static ESPNowWiFiInterface PublicInterface(wifi_interface_t interface) noexcept {
         return interface == WIFI_IF_AP ? ESPNowWiFiInterface::AccessPoint : ESPNowWiFiInterface::Station;
     }
 
@@ -297,15 +336,26 @@ private:
         static const uint8_t broadcast[MacAddressLength] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
         if (std::memcmp(destination, broadcast, MacAddressLength) == 0) return false;
         uint8_t local[MacAddressLength] = {};
-        if (esp_wifi_get_mac(WIFI_IF_STA, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) { interface = WIFI_IF_STA; return true; }
-        if (esp_wifi_get_mac(WIFI_IF_AP, local) == ESP_OK && std::memcmp(destination, local, MacAddressLength) == 0) { interface = WIFI_IF_AP; return true; }
+        if (esp_wifi_get_mac(WIFI_IF_STA, local) == ESP_OK &&
+            std::memcmp(destination, local, MacAddressLength) == 0) {
+            interface = WIFI_IF_STA;
+            return true;
+        }
+        if (esp_wifi_get_mac(WIFI_IF_AP, local) == ESP_OK &&
+            std::memcmp(destination, local, MacAddressLength) == 0) {
+            interface = WIFI_IF_AP;
+            return true;
+        }
         return false;
     }
 
     bool FindPeerInterfaceHint(const MacAddress& address, wifi_interface_t& interface) const {
         std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
         for (const auto& hint : _peerInterfaceHints) {
-            if (hint.Used && hint.Address == address) { interface = hint.Interface; return true; }
+            if (hint.Used && hint.Address == address) {
+                interface = hint.Interface;
+                return true;
+            }
         }
         return false;
     }
@@ -313,7 +363,8 @@ private:
     bool IsManagedPeerAuto(const MacAddress& address) const {
         std::lock_guard<std::mutex> lock(_managedPeerMutex);
         for (const auto& record : _managedPeers) {
-            if (record.Used && record.Config.Address == address) return record.Config.Interface == ESPNowWiFiInterface::Auto;
+            if (record.Used && record.Config.Address == address)
+                return record.Config.Interface == ESPNowWiFiInterface::Auto;
         }
         return false;
     }
@@ -325,11 +376,17 @@ private:
             PeerInterfaceHint* freeHint = nullptr;
             bool updated = false;
             for (auto& hint : _peerInterfaceHints) {
-                if (hint.Used && hint.Address == address) { hint.Interface = interface; updated = true; break; }
+                if (hint.Used && hint.Address == address) {
+                    hint.Interface = interface;
+                    updated = true;
+                    break;
+                }
                 if (!hint.Used && freeHint == nullptr) freeHint = &hint;
             }
             if (!updated && freeHint != nullptr) {
-                freeHint->Used = true; freeHint->Address = address; freeHint->Interface = interface;
+                freeHint->Used = true;
+                freeHint->Address = address;
+                freeHint->Interface = interface;
             }
         }
         std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
@@ -346,7 +403,10 @@ private:
     void ClearPeerInterfaceHint(const MacAddress& address) {
         std::lock_guard<std::mutex> lock(_peerInterfaceMutex);
         for (auto& hint : _peerInterfaceHints) {
-            if (hint.Used && hint.Address == address) { hint = PeerInterfaceHint{}; return; }
+            if (hint.Used && hint.Address == address) {
+                hint = PeerInterfaceHint{};
+                return;
+            }
         }
     }
 
@@ -356,12 +416,14 @@ private:
     }
 
     ManagedPeerRecord* FindManagedPeerLocked(const MacAddress& address) {
-        for (auto& record : _managedPeers) if (record.Used && record.Config.Address == address) return &record;
+        for (auto& record : _managedPeers)
+            if (record.Used && record.Config.Address == address) return &record;
         return nullptr;
     }
 
     const ManagedPeerRecord* FindManagedPeerLocked(const MacAddress& address) const {
-        for (const auto& record : _managedPeers) if (record.Used && record.Config.Address == address) return &record;
+        for (const auto& record : _managedPeers)
+            if (record.Used && record.Config.Address == address) return &record;
         return nullptr;
     }
 
@@ -372,7 +434,11 @@ private:
             return true;
         }
         for (auto& record : _managedPeers) {
-            if (!record.Used) { record.Used = true; record.Config = config; return true; }
+            if (!record.Used) {
+                record.Used = true;
+                record.Config = config;
+                return true;
+            }
         }
         return false;
     }
@@ -404,7 +470,7 @@ private:
         else std::memset(peer.lmk, 0, sizeof(peer.lmk));
         const esp_err_t result = existed ? esp_now_mod_peer(&peer) : esp_now_add_peer(&peer);
         if (result != ESP_OK) return false;
-        if (notifyAdded && !existed) _observable->PeerAdded(config.Address);
+        if (notifyAdded && !existed && _observable) _observable->PeerAdded(config.Address);
         return true;
     }
 
@@ -434,17 +500,19 @@ private:
         return ReconcileManagedPeersLocked();
     }
 
-    void ProcessCallbackFrame(const CallbackFrame& frame) {
-        const ESPNowReceivedFrame& received = frame.Received;
-        if (frame.HasLocalInterface) {
-            RememberPeerInterface(received.Source, frame.LocalInterface);
+    void ProcessReceiveSlot(uint16_t slotIndex) {
+        if (slotIndex >= _receivePool.size()) return;
+        auto& slot = _receivePool[slotIndex];
+        auto& received = slot.Received;
+        if (slot.HasLocalInterface) RememberPeerInterface(received.Source, slot.LocalInterface);
+        if (_observable) {
+            _observable->FrameReceived(
+                received.Source,
+                received.Protocol,
+                received.PayloadLength,
+                received.ReceiveMonotonicNanoseconds
+            );
         }
-        _observable->FrameReceived(
-            received.Source,
-            received.Protocol,
-            received.PayloadLength,
-            received.ReceiveMonotonicNanoseconds
-        );
 
         std::shared_ptr<ProtocolHandler> handler;
         {
@@ -456,13 +524,22 @@ private:
                 }
             }
         }
-        if (handler && *handler) (*handler)(received);
+
+        ESPNowReceivedFrameLease lease(
+            &received,
+            this,
+            slotIndex,
+            &ESPNowTransport::ReleaseReceiveSlotLease
+        );
+        if (handler && *handler) {
+            (*handler)(std::move(lease));
+        }
     }
 
     void ProcessWorkerIteration() {
-        CallbackFrame frame;
-        while (_receiveQueue != nullptr && static_cast<bool>(_receiveQueue->Receive(&frame, 0))) {
-            ProcessCallbackFrame(frame);
+        uint16_t slotIndex = 0;
+        while (_receiveQueue != nullptr && static_cast<bool>(_receiveQueue->Receive(&slotIndex, 0))) {
+            ProcessReceiveSlot(slotIndex);
         }
 
         std::array<std::shared_ptr<MaintenanceHandler>, ESPRESSIO_ESPNOW_MAX_MAINTENANCE_HANDLERS> handlers{};
@@ -470,9 +547,8 @@ private:
             std::lock_guard<std::mutex> lock(_maintenanceMutex);
             std::size_t index = 0;
             for (const auto& record : _maintenanceHandlers) {
-                if (record.Owner != nullptr && record.Handler && index < handlers.size()) {
+                if (record.Owner != nullptr && record.Handler && index < handlers.size())
                     handlers[index++] = record.Handler;
-                }
             }
         }
         const uint64_t nowMilliseconds = GetRawMonotonicNanoseconds() / 1000000ULL;
@@ -495,10 +571,9 @@ private:
         }
 
         const std::size_t boundedLength = std::min<std::size_t>(
-            static_cast<std::size_t>(length),
-            MaximumFrameSize
+            static_cast<std::size_t>(length), MaximumFrameSize
         );
-        WireHeader header;
+        WireHeader header{};
         std::memcpy(&header, data, sizeof(header));
         if (header.Magic != FrameMagic || header.Version != FrameVersion ||
             header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) ||
@@ -506,20 +581,29 @@ private:
             return;
         }
 
-        CallbackFrame frame;
-        frame.Received.Source = MacAddress(source);
-        frame.Received.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
-        frame.Received.Protocol = header.Protocol;
-        frame.Received.PayloadLength = header.PayloadLength;
+        uint16_t slotIndex = 0;
+        if (!self->TryAcquireReceiveSlot(slotIndex)) {
+            self->_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+
+        auto& slot = self->_receivePool[slotIndex];
+        slot.Received.Source = MacAddress(source);
+        slot.Received.ReceiveMonotonicNanoseconds = GetRawMonotonicNanoseconds();
+        slot.Received.Protocol = header.Protocol;
+        slot.Received.PayloadLength = header.PayloadLength;
         if (header.PayloadLength != 0) {
             std::memcpy(
-                frame.Received.Payload,
+                slot.Received.Payload,
                 data + sizeof(WireHeader),
                 header.PayloadLength
             );
         }
-        frame.HasLocalInterface = ResolveLocalInterface(destination, frame.LocalInterface);
-        if (!static_cast<bool>(self->_receiveQueue->Send(&frame, 0))) {
+        slot.HasLocalInterface = ResolveLocalInterface(destination, slot.LocalInterface);
+
+        // Only the tiny pool-slot index is copied through the platform queue; payload bytes remain stationary.
+        if (!static_cast<bool>(self->_receiveQueue->Send(&slotIndex, 0))) {
+            self->ReleaseReceiveSlot(slotIndex);
             self->_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed);
         }
     }
@@ -545,7 +629,10 @@ private:
         CallbackInstance() = nullptr;
         esp_now_unregister_recv_cb();
         esp_now_deinit();
-        if (_worker) { _worker->Shutdown(); _worker.reset(); }
+        if (_worker) {
+            _worker->Shutdown();
+            _worker.reset();
+        }
         _receiveQueue.reset();
         _initialized.store(false, std::memory_order_release);
     }
@@ -563,6 +650,7 @@ public:
         if (!observer || !EnsureObservable()) return {};
         return _observable->RegisterObserver(observer);
     }
+
     void UnregisterObserver(IESPNowTransportObserver* observer) {
         if (_observable) _observable->UnregisterObserver(observer);
     }
@@ -571,20 +659,29 @@ public:
         if (_initialized.load(std::memory_order_acquire)) return true;
         if (!EnsureRuntimeStorage()) return false;
         _config = config;
-        if (_config.WorkerIterationIntervalMilliseconds == 0 || _config.ReceiveQueueLength == 0) {
+        if (_config.WorkerIterationIntervalMilliseconds == 0 ||
+            _config.ReceiveQueueLength == 0 ||
+            _config.ReceiveQueueLength > MaximumReceivePoolSlots) {
+            _observable->InitializationFailed();
+            return false;
+        }
+        if (!EnsureReceivePool(_config.ReceiveQueueLength)) {
             _observable->InitializationFailed();
             return false;
         }
         if (_config.InitializeWiFi) ::WiFi.mode(WIFI_STA);
-        if (_config.Channel != 0 && esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        if (_config.Channel != 0 &&
+            esp_wifi_set_channel(_config.Channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
             _observable->InitializationFailed();
             return false;
         }
-        _receiveQueue = System::Queue::Create<CallbackFrame>(
-            _config.ReceiveQueueLength,
-            ExternalPreferred
-        );
-        if (_receiveQueue == nullptr) { _observable->InitializationFailed(); return false; }
+
+        // Queue only pool-slot indexes in internal memory; payload-bearing pool slots prefer PSRAM.
+        _receiveQueue = System::Queue::Create<uint16_t>(_config.ReceiveQueueLength, Internal);
+        if (_receiveQueue == nullptr) {
+            _observable->InitializationFailed();
+            return false;
+        }
         try {
             _worker = System::Memory::MakeUnique<TransportWorker, ExternalPreferred>(*this);
         } catch (...) {
@@ -645,13 +742,18 @@ public:
             CallbackInstance() = nullptr;
             esp_now_deinit();
         }
-        if (_worker) { _worker->Shutdown(); _worker.reset(); }
+        if (_worker) {
+            _worker->Shutdown();
+            _worker.reset();
+        }
         _receiveQueue.reset();
         { std::lock_guard<std::mutex> lock(_handlerMutex); for (auto& record : _handlers) record = HandlerRecord{}; }
         { std::lock_guard<std::mutex> lock(_maintenanceMutex); for (auto& record : _maintenanceHandlers) record = MaintenanceRecord{}; }
         { std::lock_guard<std::mutex> lock(_peerInterfaceMutex); for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{}; }
         { std::lock_guard<std::mutex> lock(_managedPeerMutex); for (auto& record : _managedPeers) record = ManagedPeerRecord{}; }
         { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = ESPNowRadioBinding{}; _radioBinding.Available = false; }
+        // Keep receive-pool allocation alive across shutdown so any temporarily retained lease cannot dangle.
+        // A subsequent Initialize may resize the pool only after every lease has been returned.
         if (_observable) _observable->Shutdown();
     }
 
@@ -659,10 +761,12 @@ public:
     uint32_t GetReceiveTaskMinimumFreeStackBytes() const { return _worker ? _worker->MinimumFreeStackBytes() : 0; }
     uint32_t GetWorkerIterationIntervalMilliseconds() const noexcept { return _config.WorkerIterationIntervalMilliseconds; }
 
-    /// <summary>Returns the number of valid native ESP-NOW frames dropped because the bounded receive queue could not accept them.</summary>
-    /// <remarks>The native receive callback remains nonblocking; this counter is incremented atomically without logging, locking, allocation, or observer dispatch.</remarks>
     uint64_t GetReceiveQueueRejectedCount() const noexcept {
         return _receiveQueueRejectedCount.load(std::memory_order_relaxed);
+    }
+
+    uint32_t GetReceivePoolActiveLeaseCount() const noexcept {
+        return _receivePoolActiveLeases.load(std::memory_order_relaxed);
     }
 
     ESPNowSendResult GetLastSendResult() const noexcept {
@@ -735,24 +839,30 @@ public:
 
     bool ApplyRadioBinding(const ESPNowRadioBinding& binding, bool reinitializeNativeState = false) {
         if (!GetIsInitialized()) return false;
-        { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = binding; _radioBinding.Available = false; }
+        {
+            std::lock_guard<std::mutex> lock(_radioBindingMutex);
+            _radioBinding = binding;
+            _radioBinding.Available = false;
+        }
         ClearPeerInterfaceHints();
         bool success = false;
         {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
-            const bool mustReinitialize = reinitializeNativeState || _nativeSuspended.load(std::memory_order_acquire);
+            const bool mustReinitialize = reinitializeNativeState ||
+                _nativeSuspended.load(std::memory_order_acquire);
             success = mustReinitialize ? ReinitializeNativeStateLocked() : ReconcileManagedPeersLocked();
         }
-        { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = binding; _radioBinding.Available = binding.Available && success; }
+        {
+            std::lock_guard<std::mutex> lock(_radioBindingMutex);
+            _radioBinding = binding;
+            _radioBinding.Available = binding.Available && success;
+        }
         return success;
     }
 
     bool RegisterProtocolHandler(uint8_t protocol, ProtocolHandler handler) {
         if (!handler || !EnsureRuntimeStorage()) return false;
-        auto owned = System::Memory::MakeShared<
-            ProtocolHandler,
-            ExternalPreferred
-        >(std::move(handler));
+        auto owned = System::Memory::MakeShared<ProtocolHandler, ExternalPreferred>(std::move(handler));
         std::lock_guard<std::mutex> lock(_handlerMutex);
         for (auto& record : _handlers) {
             if (record.Handler && record.Protocol == protocol) {
@@ -773,19 +883,22 @@ public:
     void UnregisterProtocolHandler(uint8_t protocol) {
         std::lock_guard<std::mutex> lock(_handlerMutex);
         for (auto& record : _handlers) {
-            if (record.Handler && record.Protocol == protocol) { record = HandlerRecord{}; return; }
+            if (record.Handler && record.Protocol == protocol) {
+                record = HandlerRecord{};
+                return;
+            }
         }
     }
 
     bool RegisterMaintenanceHandler(const void* owner, MaintenanceHandler handler) {
         if (owner == nullptr || !handler || !EnsureRuntimeStorage()) return false;
-        auto owned = System::Memory::MakeShared<
-            MaintenanceHandler,
-            ExternalPreferred
-        >(std::move(handler));
+        auto owned = System::Memory::MakeShared<MaintenanceHandler, ExternalPreferred>(std::move(handler));
         std::lock_guard<std::mutex> lock(_maintenanceMutex);
         for (auto& record : _maintenanceHandlers) {
-            if (record.Owner == owner) { record.Handler = std::move(owned); return true; }
+            if (record.Owner == owner) {
+                record.Handler = std::move(owned);
+                return true;
+            }
         }
         for (auto& record : _maintenanceHandlers) {
             if (record.Owner == nullptr) {
@@ -801,7 +914,10 @@ public:
         if (owner == nullptr) return;
         std::lock_guard<std::mutex> lock(_maintenanceMutex);
         for (auto& record : _maintenanceHandlers) {
-            if (record.Owner == owner) { record = MaintenanceRecord{}; return; }
+            if (record.Owner == owner) {
+                record = MaintenanceRecord{};
+                return;
+            }
         }
     }
 
@@ -828,8 +944,11 @@ public:
         const bool existed = esp_now_is_peer_exist(address.Bytes);
         const esp_err_t result = esp_now_del_peer(address.Bytes);
         const bool success = result == ESP_OK || result == ESP_ERR_ESPNOW_NOT_FOUND;
-        if (success) { ClearPeerInterfaceHint(address); ForgetManagedPeer(address); }
-        if (success && existed) _observable->PeerRemoved(address);
+        if (success) {
+            ClearPeerInterfaceHint(address);
+            ForgetManagedPeer(address);
+        }
+        if (success && existed && _observable) _observable->PeerRemoved(address);
         return success;
     }
 
@@ -842,26 +961,36 @@ public:
         ESPNowSendResult result;
         if (!GetIsInitialized()) {
             result.Failure = ESPNowSendFailure::NotInitialized;
+#ifdef ESP_ERR_ESPNOW_NOT_INIT
             result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_NOT_INIT);
+#else
+            result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE);
+#endif
         } else if (destination.IsZero() || payloadLength > MaximumFrameSize - sizeof(WireHeader)) {
             result.Failure = ESPNowSendFailure::InvalidArgument;
+#ifdef ESP_ERR_ESPNOW_ARG
             result.NativeError = static_cast<int32_t>(ESP_ERR_ESPNOW_ARG);
+#else
+            result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_ARG);
+#endif
         } else {
             std::lock_guard<std::recursive_mutex> nativeLock(_nativeMutex);
             if (_nativeSuspended.load(std::memory_order_acquire) || !RadioBindingSnapshot().Available) {
                 result.Failure = ESPNowSendFailure::RadioUnavailable;
                 result.NativeError = static_cast<int32_t>(ESP_ERR_INVALID_STATE);
             } else {
-                // Native send buffer remains on internal task stack intentionally.
                 uint8_t frame[MaximumFrameSize] = {0};
-                WireHeader header;
+                WireHeader header{};
                 header.Protocol = protocol;
                 header.PayloadLength = static_cast<uint16_t>(payloadLength);
                 std::memcpy(frame, &header, sizeof(header));
-                if (payload != nullptr && payloadLength > 0) {
+                if (payload != nullptr && payloadLength > 0)
                     std::memcpy(frame + sizeof(header), payload, payloadLength);
-                }
-                const esp_err_t native = esp_now_send(destination.Bytes, frame, sizeof(header) + payloadLength);
+                const esp_err_t native = esp_now_send(
+                    destination.Bytes,
+                    frame,
+                    sizeof(header) + payloadLength
+                );
                 result.Success = native == ESP_OK;
                 result.NativeError = static_cast<int32_t>(native);
                 result.Failure = ClassifySendFailure(native);
@@ -870,11 +999,18 @@ public:
         _lastSendFailure.store(result.Failure);
         _lastSendNativeError.store(result.NativeError);
         if (result.Success && _observable) _observable->SendAccepted(destination, protocol, payloadLength);
-        else if (_observable) _observable->SendFailed(destination, protocol, payloadLength, result.Failure, result.NativeError);
+        else if (_observable) _observable->SendFailed(
+            destination, protocol, payloadLength, result.Failure, result.NativeError
+        );
         return result;
     }
 
-    bool Send(const MacAddress& destination, uint8_t protocol, const void* payload, std::size_t payloadLength) {
+    bool Send(
+        const MacAddress& destination,
+        uint8_t protocol,
+        const void* payload,
+        std::size_t payloadLength
+    ) {
         return SendDetailed(destination, protocol, payload, payloadLength).Success;
     }
 
