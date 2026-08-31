@@ -141,6 +141,7 @@ int main() {
     config.MaximumReassemblies = 4;
     config.MaximumDuplicateResults = 4;
     config.MaximumInboundRequests = 1;
+    config.InboundRequestTimeoutMilliseconds = 50;
 
     const Peer remote = MakePeer(0x44);
     std::vector<Frame> outbound;
@@ -266,7 +267,92 @@ int main() {
     decoded = DecodeResponse(3001, outbound);
     assert(!decoded.success);
     assert(decoded.code == 7);
+    outbound.clear();
+
+    // Accepted asynchronous requests have a bounded lifetime. Before the exact
+    // deadline the slot remains occupied and no response is emitted.
+    endpoint.SetInboundRequestHandler(
+        [&](const ESPNow::ESPNowCommandInvocationContext& context) {
+            ++handedOff;
+            captured = context;
+            return true;
+        }
+    );
+    const auto expiring = BuildRequestFrames(
+        4001,
+        PingInvocation(),
+        config.MaximumProtocolPayloadBytes
+    );
+    DeliverRequest(endpoint, remote, expiring, 100);
+    assert(endpoint.GetInboundRequestCount() == 1);
+    assert(handedOff == 4);
+    endpoint.Update(149);
+    assert(endpoint.GetInboundRequestCount() == 1);
+    assert(outbound.empty());
+
+    // At the deadline the abandoned slot is reclaimed and a deterministic
+    // timeout response is produced and cached.
+    endpoint.Update(150);
+    assert(endpoint.GetInboundRequestCount() == 0);
+    decoded = DecodeResponse(4001, outbound);
+    assert(!decoded.success);
+    assert(decoded.code == 8);
+    assert(decoded.message == "Inbound ESP-NOW Command request timed out");
+    outbound.clear();
+
+    // Completion arriving after expiry is stale and must not resurrect the
+    // request or replace the cached timeout result.
+    completion.RequestId = 4001;
+    completion.Success = true;
+    completion.Code = 0;
+    completion.SetMessage("late");
+    assert(!endpoint.CompleteInbound(remote, completion, 151));
+    assert(endpoint.GetInboundRequestCount() == 0);
+
+    // Retransmission after expiry is answered from the duplicate cache and is
+    // never handed to application execution a second time.
+    DeliverRequest(endpoint, remote, expiring, 152);
+    assert(handedOff == 4);
+    assert(endpoint.GetInboundRequestCount() == 0);
+    decoded = DecodeResponse(4001, outbound);
+    assert(!decoded.success);
+    assert(decoded.code == 8);
+    outbound.clear();
+
+    // Expiry frees bounded inbound capacity for a distinct request.
+    const auto afterExpiry = BuildRequestFrames(
+        4002,
+        PingInvocation(),
+        config.MaximumProtocolPayloadBytes
+    );
+    DeliverRequest(endpoint, remote, afterExpiry, 153);
+    assert(endpoint.GetInboundRequestCount() == 1);
+    assert(handedOff == 5);
+
+    // A backwards caller timestamp does not spuriously expire the request
+    // because the endpoint elapsed helper clamps backwards time.
+    endpoint.Update(10);
+    assert(endpoint.GetInboundRequestCount() == 1);
+    endpoint.Update(202);
+    assert(endpoint.GetInboundRequestCount() == 1);
+    endpoint.Update(203);
+    assert(endpoint.GetInboundRequestCount() == 0);
+    decoded = DecodeResponse(4002, outbound);
+    assert(!decoded.success);
+    assert(decoded.code == 8);
+    outbound.clear();
 
     endpoint.Shutdown();
+
+    // A zero inbound timeout is invalid: async entries must always have a
+    // bounded lifetime when the endpoint is initialized.
+    ESPNow::ESPNowCommandEndpoint invalidEndpoint;
+    auto invalidConfig = config;
+    invalidConfig.InboundRequestTimeoutMilliseconds = 0;
+    assert(!invalidEndpoint.Initialize(
+        registry,
+        invalidConfig,
+        [&](const Peer&, const uint8_t*, std::size_t) { return true; }
+    ));
     return 0;
 }

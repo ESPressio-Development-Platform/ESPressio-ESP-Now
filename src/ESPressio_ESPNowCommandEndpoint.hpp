@@ -44,6 +44,7 @@ struct ESPNowCommandEndpointConfig {
     std::size_t MaximumDuplicateResults = 8;
     std::size_t MaximumInboundRequests = 8;
     uint64_t RequestTimeoutMilliseconds = 100;
+    uint64_t InboundRequestTimeoutMilliseconds = 5000;
     uint64_t ReassemblyTimeoutMilliseconds = 500;
     uint64_t DuplicateResultLifetimeMilliseconds = 1000;
 };
@@ -69,7 +70,7 @@ public:
         if (!sender || config.MaximumProtocolPayloadBytes <= ESPNowCommandProtocol::FragmentHeaderSize ||
             config.MaximumMessageBytes == 0 || config.MaximumOutstandingRequests == 0 ||
             config.MaximumReassemblies == 0 || config.MaximumDuplicateResults == 0 ||
-            config.MaximumInboundRequests == 0) return false;
+            config.MaximumInboundRequests == 0 || config.InboundRequestTimeoutMilliseconds == 0) return false;
         _registry = &registry;
         _config = config;
         _sender = std::move(sender);
@@ -258,7 +259,7 @@ public:
         return SendResponseAndCache(peer, response.RequestId, result, nowMilliseconds);
     }
 
-    /// <summary>Expires timed-out outbound requests, stale fragment reassemblies, and duplicate-response cache entries.</summary>
+    /// <summary>Expires timed-out outbound/inbound requests, stale fragment reassemblies, and duplicate-response cache entries.</summary>
     void Update(uint64_t nowMilliseconds) {
         if (!_initialized) return;
         for (std::size_t i = 0; i < _pending.size();) {
@@ -270,6 +271,30 @@ public:
                 ++i;
             }
         }
+        for (std::size_t i = 0; i < _inbound.size();) {
+            if (Elapsed(nowMilliseconds, _inbound[i].AcceptedMilliseconds) >=
+                _config.InboundRequestTimeoutMilliseconds) {
+                const ESPNowCommandPeerAddress peer = _inbound[i].Peer;
+                const uint64_t requestID = _inbound[i].RequestID;
+                ESPNowCommandInvocationContext context = std::move(_inbound[i].Context);
+                _inbound.erase(_inbound.begin() + static_cast<std::ptrdiff_t>(i));
+
+                const Command::CommandResult result = Command::CommandResult::Error(
+                    "Inbound ESP-NOW Command request timed out",
+                    8
+                );
+                if (_observer) _observer(context, result);
+
+                // The slot is already released even when response encoding or
+                // physical transmission fails. A successfully encoded response
+                // is cached before send, so retransmission of the same logical
+                // request cannot re-enter application execution after expiry.
+                (void)SendResponseAndCache(peer, requestID, result, nowMilliseconds);
+            } else {
+                ++i;
+            }
+        }
+
         _reassemblies.erase(
             std::remove_if(
                 _reassemblies.begin(),
@@ -311,6 +336,7 @@ private:
     struct InboundRequest {
         ESPNowCommandPeerAddress Peer;
         uint64_t RequestID = 0;
+        uint64_t AcceptedMilliseconds = 0;
         ESPNowCommandInvocationContext Context;
     };
     struct Reassembly {
@@ -494,6 +520,7 @@ private:
             InboundRequest inbound;
             inbound.Peer = peer;
             inbound.RequestID = requestID;
+            inbound.AcceptedMilliseconds = nowMilliseconds;
             inbound.Context = context;
             _inbound.push_back(std::move(inbound));
 
