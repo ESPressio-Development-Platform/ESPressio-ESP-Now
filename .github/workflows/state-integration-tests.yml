@@ -6,6 +6,7 @@ on:
       - 'feature/**'
       - 'bugfix/**'
       - 'optimisation/**'
+      - 'item_4_saturation_testing'
   pull_request:
 
 jobs:
