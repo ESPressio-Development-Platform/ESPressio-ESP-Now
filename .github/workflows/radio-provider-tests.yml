@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/53-radio-provider
+      - optimisation/54-move-owned-radio-packets
   pull_request:
 
 jobs:
@@ -38,7 +39,7 @@ jobs:
               https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#item_4_saturation_testing
               https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#item_4_saturation_testing
               https://github.com/ESPressio-Development-Platform/ESPressio-Radio.git#feature/1-radio-transport
-              https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git#feature/53-radio-provider
+              https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git#optimisation/54-move-owned-radio-packets
           EOF
           cat > "$PROJECT/src/main.cpp" <<'EOF'
           #include <Arduino.h>
@@ -55,5 +56,5 @@ jobs:
 
           void loop() {}
           EOF
-      - name: Compile Radio provider against current Working Branch APIs
+      - name: Compile zero-copy Radio provider against current Working Branch APIs
         run: pio run -d "$RUNNER_TEMP/espressio-espnow-radio-ci"
