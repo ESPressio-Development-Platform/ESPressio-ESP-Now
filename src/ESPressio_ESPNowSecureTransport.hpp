@@ -34,7 +34,7 @@ public:
         _security = &security;
         const bool registered = _transport.RegisterProtocolHandler(
             static_cast<uint8_t>(ESPNowProtocol::SecureTransport),
-            [this](const ESPNowReceivedFrame& frame) { HandleFrame(frame); }
+            [this](ESPNowReceivedFrameLease&& lease) { HandleFrame(lease.Frame()); }
         );
         _initialized = registered;
         return registered;
@@ -76,9 +76,6 @@ public:
         if (!_initialized || _security == nullptr || destination.IsZero() ||
             (payload == nullptr && payloadLength != 0)) return false;
 
-        // The protected envelope may be many ESP-NOW frames long and never
-        // requires DMA-capable storage. Keep it in PSRAM-capable System memory
-        // from encryption through fragmentation.
         Security::SecurityBuffer secured;
         auto result = _security->Protect(
             protocol,
@@ -99,8 +96,6 @@ public:
         if (fragmentCount == 0 ||
             fragmentCount > ESPNowSecurityProtocol::MaximumFragments) return false;
 
-        // Reuse one PSRAM-backed encoded fragment rather than materializing all
-        // fragments or allocating one ordinary vector per send iteration.
         ESPNowSecurityProtocol::ByteBuffer encoded;
         encoded.reserve(MaximumFrameSize);
         for (std::size_t index = 0; index < fragmentCount; ++index) {
@@ -159,9 +154,6 @@ private:
         Security::UnprotectedPayload opened;
         Security::SecurityResult result;
 
-        // DecodeFragment borrows directly from ESPNowReceivedFrame. Only the
-        // one required copy into retained reassembly storage is performed for
-        // fragmented envelopes, and that storage is ExternalPreferred.
         {
             ESPNowSecurityProtocol::Fragment fragment;
             if (!ESPNowSecurityProtocol::DecodeFragment(
