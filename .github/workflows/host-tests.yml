@@ -182,8 +182,6 @@ jobs:
 
               auto& commandExecutor = ESPressio::Command::CommandEventExecutor::GetInstance();
               commandExecutor.Prepare();
-              commandExecutor.Initialize();
-              commandExecutor.Start();
 
               commandTransport.Initialize(transport);
 
