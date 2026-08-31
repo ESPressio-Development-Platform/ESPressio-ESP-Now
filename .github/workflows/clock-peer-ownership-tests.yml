@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - bugfix/39-wifi-coexistence
+      - experiment/serializable-no-eager-reserve-ab
   pull_request:
 
 jobs:
