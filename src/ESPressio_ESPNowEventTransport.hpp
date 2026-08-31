@@ -71,7 +71,7 @@ class ESPNowEventTransport final : public Event::IEventTransport {
 private:
 #pragma pack(push, 1)
     struct FragmentHeader {
-        static constexpr uint32_t MagicValue = 0x45564E57u; // EVNW
+        static constexpr uint32_t MagicValue = 0x45564E57u;
         static constexpr uint8_t VersionValue = 1;
 
         uint32_t Magic = MagicValue;
@@ -113,7 +113,6 @@ private:
     };
 
 public:
-    /// <summary>Task and queue resources used for outbound Event fragmentation and physical send.</summary>
     struct OutboundConfiguration {
         const char* Name = "espnowEventTx";
         uint32_t StackSize = ESPRESSIO_ESPNOW_EVENT_OUTBOUND_STACK_SIZE;
@@ -460,7 +459,9 @@ private:
 
         if (!transport.RegisterProtocolHandler(
                 static_cast<uint8_t>(ESPNowProtocol::EventTransport),
-                [this](const ESPNowReceivedFrame& frame) { (void)_asyncHandler.Submit(frame); })) {
+                [this](ESPNowReceivedFrameLease&& lease) {
+                    (void)_asyncHandler.Submit(std::move(lease));
+                })) {
             Shutdown();
             return false;
         }
