@@ -51,9 +51,10 @@ doc = Path('COMMAND_INTEGRATION.md')
 d = doc.read_text()
 anchor = 'MaximumInboundRequests'
 assert anchor in d
-# Add one concise note beside the first configuration discussion without rewriting release/version material.
 pos = d.index(anchor)
 line_end = d.find('\n', pos)
 insert = '\n- `InboundRequestTimeoutMilliseconds` bounds accepted asynchronous inbound Command lifetime; expiry frees the bounded slot, returns/caches timeout error code `8`, and causes late `CompleteInbound(...)` calls to fail.\n'
 d = d[:line_end+1] + insert + d[line_end+1:]
 doc.write_text(d)
+
+# trigger
