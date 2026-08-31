@@ -75,7 +75,6 @@ private:
         std::shared_ptr<MaintenanceHandler> Handler;
     };
 
-    /// <summary>One externally-preferred payload-bearing pool slot.</summary>
     struct ReceivePoolSlot {
         ESPNowReceivedFrame Received{};
         wifi_interface_t LocalInterface = WIFI_IF_STA;
@@ -146,11 +145,7 @@ private:
             uint32_t previous = _minimumFreeStackBytes.load(std::memory_order_relaxed);
             while ((previous == 0 || freeBytes < previous) &&
                    !_minimumFreeStackBytes.compare_exchange_weak(
-                       previous,
-                       freeBytes,
-                       std::memory_order_release,
-                       std::memory_order_relaxed
-                   )) {}
+                       previous, freeBytes, std::memory_order_release, std::memory_order_relaxed)) {}
             _owner.ProcessWorkerIteration();
         }
     private:
@@ -226,11 +221,8 @@ private:
             return _receivePool.size() == slotCount;
         }
         try {
-            if (_receivePool.size() != slotCount) {
-                _receivePool.assign(slotCount, ReceivePoolSlot{});
-            } else {
-                for (auto& slot : _receivePool) slot = ReceivePoolSlot{};
-            }
+            if (_receivePool.size() != slotCount) _receivePool.assign(slotCount, ReceivePoolSlot{});
+            else for (auto& slot : _receivePool) slot = ReceivePoolSlot{};
         } catch (...) {
             return false;
         }
@@ -256,6 +248,14 @@ private:
         if (slot >= _receivePool.size()) return;
         _receivePoolFreeMask.fetch_or(uint64_t{1} << slot, std::memory_order_release);
         _receivePoolActiveLeases.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    void ReleaseQueuedReceiveSlots() noexcept {
+        if (_receiveQueue == nullptr) return;
+        uint16_t slot = 0;
+        while (static_cast<bool>(_receiveQueue->Receive(&slot, 0))) {
+            ReleaseReceiveSlot(slot);
+        }
     }
 
     static void ReleaseReceiveSlotLease(void* owner, uint16_t slot) noexcept {
@@ -452,9 +452,7 @@ private:
         PeerConfigSnapshot configs;
         configs.reserve(_managedPeers.size());
         std::lock_guard<std::mutex> lock(_managedPeerMutex);
-        for (const auto& record : _managedPeers) {
-            if (record.Used) configs.push_back(record.Config);
-        }
+        for (const auto& record : _managedPeers) if (record.Used) configs.push_back(record.Config);
         return configs;
     }
 
@@ -478,9 +476,7 @@ private:
         if (_nativeSuspended.load(std::memory_order_acquire)) return false;
         auto configs = CopyManagedPeerConfigs();
         bool success = true;
-        for (const auto& config : configs) {
-            if (!ProgramPeerNativeLocked(config, false)) success = false;
-        }
+        for (const auto& config : configs) if (!ProgramPeerNativeLocked(config, false)) success = false;
         return success;
     }
 
@@ -526,14 +522,9 @@ private:
         }
 
         ESPNowReceivedFrameLease lease(
-            &received,
-            this,
-            slotIndex,
-            &ESPNowTransport::ReleaseReceiveSlotLease
+            &received, this, slotIndex, &ESPNowTransport::ReleaseReceiveSlotLease
         );
-        if (handler && *handler) {
-            (*handler)(std::move(lease));
-        }
+        if (handler && *handler) (*handler)(std::move(lease));
     }
 
     void ProcessWorkerIteration() {
@@ -552,9 +543,7 @@ private:
             }
         }
         const uint64_t nowMilliseconds = GetRawMonotonicNanoseconds() / 1000000ULL;
-        for (const auto& handler : handlers) {
-            if (handler && *handler) (*handler)(nowMilliseconds);
-        }
+        for (const auto& handler : handlers) if (handler && *handler) (*handler)(nowMilliseconds);
     }
 
     static void QueueReceivedData(
@@ -566,9 +555,7 @@ private:
         ESPNowTransport* self = CallbackInstance();
         if (self == nullptr || !self->_initialized.load(std::memory_order_acquire) ||
             self->_receiveQueue == nullptr || source == nullptr || data == nullptr ||
-            length < static_cast<int>(sizeof(WireHeader))) {
-            return;
-        }
+            length < static_cast<int>(sizeof(WireHeader))) return;
 
         const std::size_t boundedLength = std::min<std::size_t>(
             static_cast<std::size_t>(length), MaximumFrameSize
@@ -577,9 +564,7 @@ private:
         std::memcpy(&header, data, sizeof(header));
         if (header.Magic != FrameMagic || header.Version != FrameVersion ||
             header.PayloadLength > MaximumFrameSize - sizeof(WireHeader) ||
-            sizeof(WireHeader) + header.PayloadLength > boundedLength) {
-            return;
-        }
+            sizeof(WireHeader) + header.PayloadLength > boundedLength) return;
 
         uint16_t slotIndex = 0;
         if (!self->TryAcquireReceiveSlot(slotIndex)) {
@@ -593,15 +578,10 @@ private:
         slot.Received.Protocol = header.Protocol;
         slot.Received.PayloadLength = header.PayloadLength;
         if (header.PayloadLength != 0) {
-            std::memcpy(
-                slot.Received.Payload,
-                data + sizeof(WireHeader),
-                header.PayloadLength
-            );
+            std::memcpy(slot.Received.Payload, data + sizeof(WireHeader), header.PayloadLength);
         }
         slot.HasLocalInterface = ResolveLocalInterface(destination, slot.LocalInterface);
 
-        // Only the tiny pool-slot index is copied through the platform queue; payload bytes remain stationary.
         if (!static_cast<bool>(self->_receiveQueue->Send(&slotIndex, 0))) {
             self->ReleaseReceiveSlot(slotIndex);
             self->_receiveQueueRejectedCount.fetch_add(1, std::memory_order_relaxed);
@@ -633,6 +613,7 @@ private:
             _worker->Shutdown();
             _worker.reset();
         }
+        ReleaseQueuedReceiveSlots();
         _receiveQueue.reset();
         _initialized.store(false, std::memory_order_release);
     }
@@ -676,7 +657,6 @@ public:
             return false;
         }
 
-        // Queue only pool-slot indexes in internal memory; payload-bearing pool slots prefer PSRAM.
         _receiveQueue = System::Queue::Create<uint16_t>(_config.ReceiveQueueLength, Internal);
         if (_receiveQueue == nullptr) {
             _observable->InitializationFailed();
@@ -746,14 +726,13 @@ public:
             _worker->Shutdown();
             _worker.reset();
         }
+        ReleaseQueuedReceiveSlots();
         _receiveQueue.reset();
         { std::lock_guard<std::mutex> lock(_handlerMutex); for (auto& record : _handlers) record = HandlerRecord{}; }
         { std::lock_guard<std::mutex> lock(_maintenanceMutex); for (auto& record : _maintenanceHandlers) record = MaintenanceRecord{}; }
         { std::lock_guard<std::mutex> lock(_peerInterfaceMutex); for (auto& hint : _peerInterfaceHints) hint = PeerInterfaceHint{}; }
         { std::lock_guard<std::mutex> lock(_managedPeerMutex); for (auto& record : _managedPeers) record = ManagedPeerRecord{}; }
         { std::lock_guard<std::mutex> lock(_radioBindingMutex); _radioBinding = ESPNowRadioBinding{}; _radioBinding.Available = false; }
-        // Keep receive-pool allocation alive across shutdown so any temporarily retained lease cannot dangle.
-        // A subsequent Initialize may resize the pool only after every lease has been returned.
         if (_observable) _observable->Shutdown();
     }
 
@@ -987,9 +966,7 @@ public:
                 if (payload != nullptr && payloadLength > 0)
                     std::memcpy(frame + sizeof(header), payload, payloadLength);
                 const esp_err_t native = esp_now_send(
-                    destination.Bytes,
-                    frame,
-                    sizeof(header) + payloadLength
+                    destination.Bytes, frame, sizeof(header) + payloadLength
                 );
                 result.Success = native == ESP_OK;
                 result.NativeError = static_cast<int32_t>(native);
