@@ -26,12 +26,12 @@
         },
         {
             "name":"ESPressio-Units",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#main",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#experiment/serializable-no-eager-reserve-ab",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Timing",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#feature/29-platform-clock-abstractions",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#experiment/serializable-no-eager-reserve-ab",
             "platforms":"espressif32"
         },
         {
@@ -46,12 +46,12 @@
         },
         {
             "name":"ESPressio-Event",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#feature/57-rtti-free-memory-efficiency",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#experiment/serializable-no-eager-reserve-ab",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Command",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#feature/30-async-command-routing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#experiment/serializable-no-eager-reserve-ab",
             "platforms":"espressif32"
         }
     ]
