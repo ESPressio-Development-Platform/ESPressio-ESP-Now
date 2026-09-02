@@ -10,11 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: feature/1-system-memory-policy, path: deps/ESPressio-System}
+        with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: main, path: deps/ESPressio-System}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: item_4_saturation_testing, path: deps/ESPressio-Command}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Command, ref: main, path: deps/ESPressio-Command}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: main, path: deps/ESPressio-Observable}
       - name: Configure
         run: >-
           cmake -S tests -B build
@@ -31,21 +31,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Security, ref: optimisation/23-memory-policy-transient-buffers, path: deps/ESPressio-Security}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Security, ref: main, path: deps/ESPressio-Security}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: feature/1-system-memory-policy, path: deps/ESPressio-System}
+        with: {repository: ESPressio-Development-Platform/ESPressio-System, ref: main, path: deps/ESPressio-System}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-ESP32, ref: feature/1-system-memory-provider, path: deps/ESPressio-ESP32}
+        with: {repository: ESPressio-Development-Platform/ESPressio-ESP32, ref: main, path: deps/ESPressio-ESP32}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: feature/1-task-execution, path: deps/ESPressio-Task}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Task, ref: main, path: deps/ESPressio-Task}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: item_4_saturation_testing, path: deps/ESPressio-Timing}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Timing, ref: main, path: deps/ESPressio-Timing}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: item_4_saturation_testing, path: deps/ESPressio-Units}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Units, ref: main, path: deps/ESPressio-Units}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: feature/16-rtti-free-observer-registry, path: deps/ESPressio-Observable}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Observable, ref: main, path: deps/ESPressio-Observable}
       - uses: actions/checkout@v4
-        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: optimisation/69-resource-footprint, path: deps/ESPressio-Threads}
+        with: {repository: ESPressio-Development-Platform/ESPressio-Threads, ref: main, path: deps/ESPressio-Threads}
       - name: Install PlatformIO
         run: pip install platformio
       - name: Create PlatformIO consumer project
