@@ -16,47 +16,47 @@
     "dependencies": [
         {
             "name":"ESPressio-System",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-System.git#feature/1-system-memory-policy",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-System.git#main",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Radio",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Radio.git#feature/1-radio-transport",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Radio.git#main",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Task",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#feature/1-task-execution",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Task.git#main",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Units",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#item_4_saturation_testing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#main",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Timing",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#item_4_saturation_testing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#main",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Observable",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#feature/16-rtti-free-observer-registry",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#main",
             "platforms":"*"
         },
         {
             "name":"ESPressio-Threads",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#optimisation/69-resource-footprint",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#main",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Event",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#item_4_saturation_testing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Event.git#main",
             "platforms":"espressif32"
         },
         {
             "name":"ESPressio-Command",
-            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#item_4_saturation_testing",
+            "version":"https://github.com/ESPressio-Development-Platform/ESPressio-Command.git#main",
             "platforms":"espressif32"
         }
     ]
