@@ -27,7 +27,7 @@ jobs:
           framework = arduino
           lib_deps =
               file://${{ github.workspace }}
-              https://github.com/ESPressio-Development-Platform/ESPressio-State.git#feature/1-state-foundation
+              https://github.com/ESPressio-Development-Platform/ESPressio-State.git#main
           build_unflags =
               -std=gnu++11
               -frtti
