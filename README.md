@@ -11,19 +11,20 @@ ESPressio ESP-Now **0.8.3** is the current release generation aligned with Seria
 Required:
 
 ```text
-ESPressio Timing >= 2.2.8 < 3.0.0
-ESPressio Observable >= 3.0.2 < 4.0.0
-ESPressio Threads >= 3.1.7 < 4.0.0
+ESPressio Radio main
+ESPressio Timing main
+ESPressio Observable main
+ESPressio Threads main
 Arduino-ESP32
 ```
 
 Optional integrations:
 
 ```text
-ESPressio WiFi (shared-radio coordination)
-ESPressio Event >= 6.0.3 < 7.0.0
-ESPressio Command >= 1.0.3 < 2.0.0
-ESPressio Security >= 0.4.2 < 1.0.0
+ESPressio WiFi main (shared-radio coordination)
+ESPressio Event main
+ESPressio Command main
+ESPressio Security main
 ```
 
 The normal `ESPressio_ESPNow.hpp` umbrella remains free of WiFi, Event, Command and Security includes. The WiFi coordinator is explicitly opt-in through `ESPressio_ESPNowWiFiCoordinator.hpp`.
@@ -32,13 +33,14 @@ The normal `ESPressio_ESPNow.hpp` umbrella remains free of WiFi, Event, Command 
 
 ```ini
 lib_deps =
-    espressio-development-platform/ESPressio-ESP-Now@^0.8.3
-    espressio-development-platform/ESPressio-Timing@^2.2.8
-    espressio-development-platform/ESPressio-Observable@^3.0.2
-    espressio-development-platform/ESPressio-Threads@^3.1.7
+    https://github.com/ESPressio-Development-Platform/ESPressio-ESP-Now.git#feature/53-radio-provider
+    https://github.com/ESPressio-Development-Platform/ESPressio-Radio.git#main
+    https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#main
+    https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#main
+    https://github.com/ESPressio-Development-Platform/ESPressio-Threads.git#main
 ```
 
-Add WiFi, Event, Command and Security only when their integrations are selected.
+Add WiFi, Event, Command and Security from their `main` branches only when their integrations are selected.
 
 ## Core transport and worker ownership
 
@@ -198,7 +200,7 @@ Applications that need a stable logical node identity across AP/STA endpoint mig
 #include <ESPressio_ESPNowTransportEventBridge.hpp>
 ```
 
-Event integration remains opt-in and is validated against Event 6.0.3.
+Event integration remains opt-in and is validated against Event `main`.
 
 ## Command integration
 
@@ -206,7 +208,7 @@ Event integration remains opt-in and is validated against Event 6.0.3.
 #include <ESPressio_ESPNowCommandTransport.hpp>
 ```
 
-Command integration remains opt-in and is validated against Command 1.0.3. Command protocol v1 remains wire-compatible. Receive processing and periodic endpoint maintenance share the ESP-NOW worker execution context; application-thread `Invoke()` calls cross a narrow synchronization boundary into that state safely.
+Command integration remains opt-in and is validated against Command `main`. Command protocol v1 remains wire-compatible. Receive processing and periodic endpoint maintenance share the ESP-NOW worker execution context; application-thread `Invoke()` calls cross a narrow synchronization boundary into that state safely.
 
 ## Security integration
 
@@ -214,7 +216,7 @@ Command integration remains opt-in and is validated against Command 1.0.3. Comma
 #include <ESPressio_ESPNowSecureTransport.hpp>
 ```
 
-Security integration remains opt-in and is validated against Security 0.4.2.
+Security integration remains opt-in and is validated against Security `main`.
 
 ## Observable lifecycle
 
