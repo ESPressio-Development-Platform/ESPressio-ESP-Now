@@ -211,7 +211,7 @@ Call:
 commandTransport.Update();
 ```
 
-regularly from the application loop so request timeouts and bounded reassembly/duplicate caches can expire even while no packets are arriving.
+regularly from the application loop so request timeouts and bounded reassembly/duplicate caches can expire even while no packets are arriving. Accepted asynchronous inbound requests are also bounded by `ESPNowCommandEndpointConfig::InboundRequestTimeoutMilliseconds` (default 5000 ms). Expiry frees the inbound slot, emits and caches timeout error code `8`, and causes any later `CompleteInbound(...)` for that request to return `false`.
 
 ## Structured request format
 

@@ -23,6 +23,24 @@ int main() {
     assert(ESPNowSecurityProtocol::FragmentEnvelope(applicationProtocol, 42, payload.data(), payload.size(), frames));
     assert(frames.size() == 3);
 
+    // #45: the single-buffer streaming encoder must be wire-identical to the
+    // retained compatibility helper that materializes all fragments.
+    std::vector<uint8_t> streamed;
+    for (std::size_t index = 0; index < frames.size(); ++index) {
+        const std::size_t offset = index * ESPNowSecurityProtocol::MaximumFragmentPayload;
+        const std::size_t bytes = std::min(ESPNowSecurityProtocol::MaximumFragmentPayload, payload.size() - offset);
+        assert(ESPNowSecurityProtocol::EncodeFragmentPayload(
+            applicationProtocol,
+            42,
+            static_cast<uint16_t>(index),
+            static_cast<uint16_t>(frames.size()),
+            payload.data() + offset,
+            bytes,
+            streamed
+        ));
+        assert(streamed == frames[index]);
+    }
+
     uint8_t macBytes[6] = {1,2,3,4,5,6};
     MacAddress source(macBytes);
     ESPNowSecurityProtocol::ReassemblyState state;
@@ -60,6 +78,9 @@ int main() {
 
     std::vector<uint8_t> tooLarge(ESPNowSecurityProtocol::MaximumEnvelopeBytes + 1, 0xAA);
     assert(!ESPNowSecurityProtocol::FragmentEnvelope(applicationProtocol, 1, tooLarge.data(), tooLarge.size(), frames));
+
+    state.ReleaseStorage();
+    for (const auto& fragment : state.Fragments) assert(fragment.capacity() == 0);
 
     std::cout << "ESP-NOW Security protocol tests passed\n";
 }

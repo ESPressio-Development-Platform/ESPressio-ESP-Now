@@ -4,7 +4,7 @@ ESP-NOW transport and distributed ESPressio implementations for the ESPressio De
 
 ## Current Version — 0.8.3
 
-ESPressio ESP-Now **0.8.3** is the current release generation aligned with Serializable 0.11.3. The release is being corrected in place under issue #40 to harden coexistence with normal ESP32 WiFi operation and eliminate cross-task protocol-state races while preserving the 0.8.3 version number and existing ESP-NOW wire format.
+ESPressio ESP-Now **0.8.3** is the current release generation aligned with Serializable 0.11.3. The current development work corrects the existing release in place under issues #39/#40 while preserving the 0.8.3 version number and existing ESP-NOW wire framing.
 
 ## Dependencies
 
@@ -20,12 +20,13 @@ Arduino-ESP32
 Optional integrations:
 
 ```text
+ESPressio WiFi (shared-radio coordination)
 ESPressio Event >= 6.0.3 < 7.0.0
 ESPressio Command >= 1.0.3 < 2.0.0
 ESPressio Security >= 0.4.2 < 1.0.0
 ```
 
-The normal `ESPressio_ESPNow.hpp` umbrella remains free of Event, Command and Security includes.
+The normal `ESPressio_ESPNow.hpp` umbrella remains free of WiFi, Event, Command and Security includes. The WiFi coordinator is explicitly opt-in through `ESPressio_ESPNowWiFiCoordinator.hpp`.
 
 ## Installation
 
@@ -37,7 +38,7 @@ lib_deps =
     espressio-development-platform/ESPressio-Threads@^3.1.7
 ```
 
-Add Event, Command and Security only when their adapters are selected.
+Add WiFi, Event, Command and Security only when their integrations are selected.
 
 ## Core transport and worker ownership
 
@@ -48,11 +49,11 @@ auto& transport = ESPressio::ESPNow::ESPNowTransport::GetInstance();
 transport.Initialize();
 ```
 
-ESP-Now now owns a rate-limited ESPressio `PrecisionThread` worker. The ESP-IDF receive callback does only bounded frame copying into a FreeRTOS queue; protocol validation, protocol handlers and registered maintenance work are executed by the worker. This removes the former split where receive/reassembly state could be mutated on the ESP-NOW receive task while timeout maintenance was invoked independently from Arduino `loop()`.
+ESP-Now owns a rate-limited ESPressio `PrecisionThread` worker. The ESP-IDF receive callback performs bounded frame copying into a FreeRTOS queue; protocol validation, protocol handlers and registered maintenance work execute on the worker. This removes the former split where receive/reassembly state could be mutated on the ESP-NOW receive task while timeout maintenance was invoked independently from Arduino `loop()`.
 
 The Threads infrastructure must therefore be initialized before `ESPNowTransport::Initialize()`. In normal ESPressio applications this is performed by `ThreadManager` alongside the other managed Threads.
 
-The existing 0.8.x configuration names remain source-compatible and now configure the worker:
+The existing 0.8.x configuration names remain source-compatible and configure the worker:
 
 ```cpp
 ESPressio::ESPNow::ESPNowTransportConfig config;
@@ -63,37 +64,107 @@ config.ReceiveQueueLength = 12;
 config.WorkerIterationIntervalMilliseconds = 5;
 ```
 
-`WorkerIterationIntervalMilliseconds` is the minimum worker iteration interval. Incoming frames remain queued until the next permitted iteration and do not bypass the rate limit. The compatibility diagnostic `GetReceiveTaskMinimumFreeStackBytes()` now reports the minimum observed free stack for this worker.
+`WorkerIterationIntervalMilliseconds` is the minimum worker iteration interval. Incoming frames remain queued until the next permitted iteration and do not bypass the rate limit. The compatibility diagnostic `GetReceiveTaskMinimumFreeStackBytes()` reports the minimum observed free stack for this worker.
 
 Command transport timeout/reassembly maintenance is automatically registered with the ESP-NOW worker. Applications no longer need to call `ESPNowCommandTransport::Update()` from `loop()`; the method remains available as a source-compatible manual hook.
 
 `ESPNowTransport::Send()` remains the compatibility boolean API. `SendDetailed()` returns an `ESPNowSendResult` containing a stable ESPressio failure class plus the native ESP-IDF `esp_err_t` value, and `GetLastSendResult()` exposes the most recent result for diagnostics.
 
-## Wi-Fi and ESP-NOW coexistence
+## WiFi and ESP-NOW coexistence
 
-ESP-NOW and conventional WiFi are permitted to operate at the same time on ESP32 devices. They are not independent radios: both facilities use the same 2.4 GHz WiFi radio and therefore share its current channel and interface state.
+ESP-NOW and conventional WiFi share one physical ESP32 2.4 GHz radio. They therefore cannot be managed as independent radio subsystems. When ESPressio WiFi is present, **WiFi is the authority for radio mode and channel and ESP-Now follows that state**.
 
-Known coexistence cases:
+Known coexistence rules:
 
-- An ESP32 cannot maintain one simultaneous WiFi channel for infrastructure/AP traffic and a different simultaneous ESP-NOW channel. There is one WiFi radio/channel at any instant.
-- When STA is associated with an infrastructure access point, that network determines the effective radio channel. ESP-NOW peers must communicate on that effective channel.
-- `ESPNowTransportConfig::Channel = 0` and `ESPNowPeerConfig::Channel = 0` mean “follow the current WiFi channel” and are recommended when WiFi owns radio configuration.
-- In AP+STA mode, the STA association has channel priority and the local SoftAP follows that channel.
-- Active WiFi scans hop the shared radio through channels and can temporarily interrupt ESP-NOW traffic. Transient send failures or increased latency during scans are expected.
-- WiFi association/reassociation, AP start/stop and channel transitions can create short ESP-NOW disruption windows.
-- ESP-NOW peers are bound to a local interface (`WIFI_IF_STA` or `WIFI_IF_AP`). A wrong interface can produce one-way communication or `ESP_ERR_ESPNOW_IF` failures.
+- An ESP32 cannot maintain one simultaneous WiFi channel for infrastructure/AP traffic and a different simultaneous ESP-NOW channel.
+- When STA associates with an infrastructure access point, that network determines the effective radio channel.
+- `ESPNowTransportConfig::Channel = 0` and `ESPNowPeerConfig::Channel = 0` mean “follow the current WiFi radio channel” and are recommended when WiFi owns radio configuration.
+- In AP+STA mode, a connected infrastructure STA normally has channel priority; a fallback SoftAP shares the same physical channel.
+- Active WiFi scans hop the shared radio through channels. ESP-NOW is intentionally treated as temporarily unavailable during this window when the coordinator is used.
+- AP/STA/APSTA transitions can invalidate native peer interface state even though the ESP-NOW logical topology has not changed.
 
-### Automatic interface handling
+### Optional direct WiFi coordination
 
-`ESPNowPeerConfig::Interface` defaults to `ESPNowWiFiInterface::Auto`. On ESP-IDF v5 and later, ESPressio records the local interface addressed by validated unicast ESP-NOW frames. If discovery initially added a peer using only broadcast information, the peer registration is corrected automatically when later unicast traffic reveals that the peer is addressing the other local interface.
+Applications using ESPressio WiFi should opt into the low-level coordinator:
 
-If no learned interface exists, `Auto` selects AP in AP-only mode and STA in STA/AP+STA modes. Applications with a fixed topology can explicitly select `Station` or `AccessPoint`.
+```cpp
+#include <ESPressio_ESPNow.hpp>
+#include <ESPressio_ESPNowWiFiCoordinator.hpp>
+#include <ESPressio_WiFi.hpp>
 
-This automation addresses interface selection; it cannot create a second physical channel.
+ESPressio::ESPNow::ESPNowTransport& transport =
+    ESPressio::ESPNow::ESPNowTransport::GetInstance();
 
-### Send diagnostics
+ESPressio::ESPNow::ESPNowWiFiCoordinator coordinator(
+    transport,
+    wifiManager
+);
 
-A detailed send failure is classified as one of:
+void setup() {
+    // Configure/start WiFi and initialize Threads first.
+
+    ESPressio::ESPNow::ESPNowTransportConfig config;
+    config.InitializeWiFi = false; // WiFi owns the radio.
+    config.Channel = 0;            // Follow WiFi's channel.
+    transport.Initialize(config);
+
+    coordinator.Initialize();
+}
+```
+
+The coordinator registers directly with WiFi's dedicated `IWiFiRadioObserver` infrastructure API; it does not route radio coordination through application Events. WiFi publishes authoritative native radio snapshots containing mode, active interfaces, STA connection state, scan state, current channel and AP/STA MAC addresses.
+
+The coordinator responds synchronously to that lifecycle:
+
+```text
+WiFi transition begins
+    -> ESP-NOW marks radio temporarily unavailable
+
+WiFi changes AP/STA/APSTA/channel state
+
+WiFi transition completes
+    -> ESP-NOW resolves the current Auto interface
+    -> managed peers are reconciled against the native ESP-NOW table
+    -> transmission resumes
+
+WiFi scan begins
+    -> ESP-NOW transmission is suspended
+
+WiFi scan completes
+    -> current channel/interface are reconciled
+    -> transmission resumes
+```
+
+Normal transitions use the least-disruptive peer reconciliation first. A complete native `esp_now_deinit()` / `esp_now_init()` rebuild is retained as an escalation path only when the driver rejects a lightweight rebind. Logical peer configuration, protocol handlers, maintenance handlers and the ESPressio worker remain owned by the transport across such a rebuild.
+
+### Dynamic `Auto` interface handling
+
+`ESPNowPeerConfig::Interface` defaults to `ESPNowWiFiInterface::Auto`. `Auto` is now a **lifetime policy**, not a one-time choice made when the peer is first added.
+
+Resolution follows this model:
+
+```text
+AP-only                  -> AccessPoint
+STA-only                 -> Station
+AP+STA, STA connected    -> Station
+AP+STA, STA disconnected -> AccessPoint when AP is active
+```
+
+When the WiFi coordinator is attached, its authoritative radio binding takes precedence over fallback inference. Validated unicast receive metadata can still provide an interface hint for an Auto peer. Explicit `Station` and `AccessPoint` peers never silently migrate.
+
+The transport keeps a bounded ESPressio logical peer registry separate from the native ESP-NOW peer table. `ReconcileManagedPeers()` can therefore reprogram native peers after WiFi changes without requiring applications to reconstruct their logical topology.
+
+### Radio availability and send diagnostics
+
+During an explicit WiFi radio transition or scan, `SendDetailed()` can report:
+
+```text
+RadioUnavailable
+```
+
+rather than entering the ESP-IDF driver during a known disruptive window.
+
+Other detailed send failures include:
 
 ```text
 NotInitialized
@@ -102,11 +173,18 @@ NoMemory
 PeerNotFound
 InterfaceMismatch
 ChannelMismatch
+RadioUnavailable
 Internal
 Unknown
 ```
 
-The native ESP-IDF error value is preserved as well. Existing `OnESPNowSendFailed(...)` observers continue to work; new observers can override `OnESPNowSendFailedDetailed(...)`. The ESP-Now Event bridge carries the same failure class and native code in `ESPNowSendFailedEvent`.
+The native ESP-IDF error value is preserved as well. Existing `OnESPNowSendFailed(...)` observers remain compatible; detailed observers can override `OnESPNowSendFailedDetailed(...)`.
+
+### Local endpoint MAC
+
+STA and AP interfaces have different MAC addresses. `ESPNowTransport::GetLocalEndpointAddress()` reports the MAC of the currently resolved ESP-NOW endpoint so discovery layers do not need to assume that the STA MAC is always the transmitting identity.
+
+Applications that need a stable logical node identity across AP/STA endpoint migration should keep that stable identity separate from the current transport endpoint. The transport deliberately exposes endpoint state rather than conflating those concepts.
 
 ## Clock synchronization
 
@@ -128,7 +206,7 @@ Event integration remains opt-in and is validated against Event 6.0.3.
 #include <ESPressio_ESPNowCommandTransport.hpp>
 ```
 
-Command integration remains opt-in and is validated against Command 1.0.3. Command protocol v1 remains wire-compatible. Receive processing and periodic endpoint maintenance now share the ESP-NOW worker execution context; application-thread `Invoke()` calls cross a narrow synchronization boundary into that state safely.
+Command integration remains opt-in and is validated against Command 1.0.3. Command protocol v1 remains wire-compatible. Receive processing and periodic endpoint maintenance share the ESP-NOW worker execution context; application-thread `Invoke()` calls cross a narrow synchronization boundary into that state safely.
 
 ## Security integration
 
@@ -160,8 +238,8 @@ ESP-Now       0.8.3
 
 ## Compatibility and release mutation
 
-The version remains **0.8.3** intentionally. Issue #40 corrects the existing release in place rather than starting another downstream version cascade. The change adds Threads as a required dependency and changes the internal execution model from a raw receive task plus application-driven maintenance to a managed `PrecisionThread` worker. Existing wire framing, frame version, protocol IDs, clock synchronization payloads, Command protocol-v1 and Security framing are unchanged.
+The version remains **0.8.3** intentionally. Issues #39/#40 correct the existing development release in place rather than starting another downstream version cascade. Existing wire framing, frame version, protocol IDs, clock synchronization payloads, Command protocol-v1 and Security framing are unchanged.
 
-Because the existing 0.8.3 release is not externally consumed, this stability correction intentionally overrides normal versioning expectations and invalidates the previous 0.8.3 implementation when the release is mutated onto the corrected commit.
+Because this 0.8.3 generation is not externally consumed, these corrections intentionally override normal versioning expectations while the architecture is stabilized.
 
 See [COMMAND_INTEGRATION.md](COMMAND_INTEGRATION.md), [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md), [ESPRESSIO_DEPENDENCY_CHART.md](ESPRESSIO_DEPENDENCY_CHART.md), and [CHANGELOG.md](CHANGELOG.md) for further details.
